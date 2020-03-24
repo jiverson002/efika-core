@@ -1,21 +1,44 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.13)
 
 #-------------------------------------------------------------------------------
-# PROJECT configuration
+# BOOTSTRAP configuration -- this is the genesis of the bootstrap project
 #-------------------------------------------------------------------------------
-project(efika LANGUAGES C CXX)
+set(BS_PROJECT_NAME efika CACHE STRING "Bootstrap project name")
 
 #-------------------------------------------------------------------------------
-# BOOTSTRAP configuration
+# SUBPROJECT configuration
 #-------------------------------------------------------------------------------
-set(BS_PROJECT_NAME ${PROJECT_NAME} CACHE STRING "Bootstrap project name")
+project(${BS_PROJECT_NAME}-core LANGUAGES C CXX)
+
+cmake_policy(SET CMP0076 NEW)
+cmake_policy(SET CMP0079 NEW)
 
 #-------------------------------------------------------------------------------
-# LIBRARY configuration -- this is the genesis of the efika library target
+# Require C99/C++17 support from compiler
 #-------------------------------------------------------------------------------
-add_library(${PROJECT_NAME} INTERFACE)
+c_99()
+cxx_17()
 
-target_include_directories(${PROJECT_NAME} INTERFACE
+#-------------------------------------------------------------------------------
+# LIBRARY configuration
+#-------------------------------------------------------------------------------
+add_library(${BS_PROJECT_NAME} INTERFACE)
+
+target_include_directories(${BS_PROJECT_NAME} INTERFACE
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
+
+#-------------------------------------------------------------------------------
+# SUBLIBRARY configuration
+#-------------------------------------------------------------------------------
+add_library(${PROJECT_NAME})
+
+target_link_libraries(${BS_PROJECT_NAME} INTERFACE ${PROJECT_NAME})
+
+target_include_directories(${PROJECT_NAME} PUBLIC
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+
+add_subdirectory(src)
