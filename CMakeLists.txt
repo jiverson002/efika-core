@@ -1,44 +1,41 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required( VERSION 3.10 )
+
+# Subproject of efika
+project( efika-core )
+
+# Always use '-fPIC'/'-fPIE' option.
+set( CMAKE_POSITION_INDEPENDENT_CODE ON )
+
+# Require C99 compliance from compiler
+set( CMAKE_C_STANDARD 99 )
+set( CMAKE_C_STANDARD_REQUIRED ON )
+set( CMAKE_C_EXTENSIONS OFF )
 
 #-------------------------------------------------------------------------------
-# BOOTSTRAP configuration -- this is the genesis of the bootstrap project
+# COMPONENT configuration
 #-------------------------------------------------------------------------------
-set(BS_PROJECT_NAME efika CACHE STRING "Bootstrap project name")
+add_library( ${PROJECT_NAME} )
+add_library( ${PROJECT_NAME}-friend INTERFACE )
+
+target_sources( ${PROJECT_NAME}
+  PRIVATE src/gc/cleanup.c src/gc/free.c src/gc/realloc.c )
+
+target_include_directories( ${PROJECT_NAME}
+  PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+          $<INSTALL_INTERFACE:include>
+  PRIVATE src/include )
+
+target_include_directories(${PROJECT_NAME}-friend INTERFACE src/include )
+
+add_library( Efika::core        ALIAS ${PROJECT_NAME} )
+add_library( Efika::core-friend ALIAS ${PROJECT_NAME}-friend )
 
 #-------------------------------------------------------------------------------
-# SUBPROJECT configuration
+# Unit test configuration
 #-------------------------------------------------------------------------------
-project(${BS_PROJECT_NAME}-core LANGUAGES C CXX)
-
-cmake_policy(SET CMP0076 NEW)
-cmake_policy(SET CMP0079 NEW)
-
-#-------------------------------------------------------------------------------
-# Require C99/C++17 support from compiler
-#-------------------------------------------------------------------------------
-c_99()
-cxx_17()
-
-#-------------------------------------------------------------------------------
-# LIBRARY configuration
-#-------------------------------------------------------------------------------
-add_library(${BS_PROJECT_NAME} INTERFACE)
-
-target_include_directories(${BS_PROJECT_NAME} INTERFACE
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
-
-#-------------------------------------------------------------------------------
-# SUBLIBRARY configuration
-#-------------------------------------------------------------------------------
-add_library(${PROJECT_NAME})
-
-target_link_libraries(${BS_PROJECT_NAME} INTERFACE ${PROJECT_NAME})
-
-target_include_directories(${PROJECT_NAME} PUBLIC
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
-
-add_subdirectory(src)
+if( CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME )
+  include( CTest )
+endif()
+if( CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME AND BUILD_TESTING )
+  add_subdirectory( test )
+endif()

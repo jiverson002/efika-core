@@ -1,11 +1,9 @@
 #-------------------------------------------------------------------------------
 # SUBLIBRARY configuration
 #-------------------------------------------------------------------------------
-target_sources(${PROJECT_NAME} PRIVATE
-  cleanup.c
-  free.c
-)
-
-target_include_directories(${PROJECT_NAME} PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/include
+target_sources(${PROJECT_NAME}
+  PRIVATE
+    gc/cleanup.c
+    gc/free.c
+    gc/realloc.c
 )
