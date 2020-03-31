@@ -2,11 +2,12 @@
 #include <stdlib.h>
 
 #include "efika/core/gc.h"
+#include "efika/core/rename.h"
 
 /*----------------------------------------------------------------------------*/
 /*! Reallocate an allocation. */
 /*----------------------------------------------------------------------------*/
-extern void*
+void*
 GC_realloc_impl(
   unsigned const gc_ctr,
   unsigned const gc_pctr,

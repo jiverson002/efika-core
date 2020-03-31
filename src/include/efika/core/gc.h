@@ -55,8 +55,8 @@
 /*----------------------------------------------------------------------------*/
 /*! Private API. */
 /*----------------------------------------------------------------------------*/
-void  GC_cleanup_impl(unsigned, unsigned, void **, void ***);
-void  GC_free_impl(unsigned, unsigned, void **, void ***, void *);
-void* GC_realloc_impl(unsigned, unsigned, void **, void ***, void *, size_t);
+void  efika_GC_cleanup_impl(unsigned, unsigned, void **, void ***);
+void  efika_GC_free_impl(unsigned, unsigned, void **, void ***, void *);
+void* efika_GC_realloc_impl(unsigned, unsigned, void **, void ***, void *, size_t);
 
 #endif /* EFIKA_CORE_GC_H */

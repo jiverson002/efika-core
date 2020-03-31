@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include "efika/core/gc.h"
+#include "efika/core/rename.h"
 
 /*----------------------------------------------------------------------------*/
 /*! Free all recorded allocations. */

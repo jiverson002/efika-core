@@ -52,4 +52,11 @@
 #define has_vtxwgt(FMT) ( 10 == (FMT) ||  11 == (FMT) || 110 == (FMT) || \
                          111 == (FMT))
 
+/*----------------------------------------------------------------------------*/
+/*! Garbage collection. */
+/*----------------------------------------------------------------------------*/
+#define GC_cleanup_impl efika_GC_cleanup_impl
+#define GC_free_impl    efika_GC_free_impl
+#define GC_realloc_impl efika_GC_realloc_impl
+
 #endif /* EFIKA_IMPL_RENAME_H */
