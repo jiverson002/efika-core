@@ -7,7 +7,7 @@
 /*----------------------------------------------------------------------------*/
 /*! Configure matrix index and weight types. */
 /*----------------------------------------------------------------------------*/
-#ifdef WITH_WIDE
+#ifdef EFIKA_WITH_WIDE
 /*! Row/column id variable type. */
 typedef uint64_t EFIKA_ind_t;
 /*! Value variable type. */
@@ -57,5 +57,21 @@ enum EFIKA_Flag {
   EFIKA_PFX  = 0x100000,
   EFIKA_VAL  = 0x1000000,
 };
+
+/*----------------------------------------------------------------------------*/
+/*! Public API. */
+/*----------------------------------------------------------------------------*/
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void EFIKA_Matrix_free(EFIKA_Matrix *);
+int  EFIKA_Matrix_iidx(EFIKA_Matrix const *, EFIKA_Matrix *);
+int  EFIKA_Matrix_init(EFIKA_Matrix *);
+int  EFIKA_Matrix_sort(EFIKA_Matrix *, int);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* EFIKA_CORE_H */

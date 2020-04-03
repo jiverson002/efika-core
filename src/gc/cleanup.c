@@ -2,12 +2,11 @@
 #include <stdlib.h>
 
 #include "efika/core/gc.h"
-#include "efika/core/rename.h"
 
 /*----------------------------------------------------------------------------*/
 /*! Free all recorded allocations. */
 /*----------------------------------------------------------------------------*/
-extern void
+void
 GC_cleanup_impl(
   unsigned const gc_ctr,
   unsigned const gc_pctr,

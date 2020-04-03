@@ -6,11 +6,16 @@
 #define val_t  EFIKA_val_t
 #define Matrix EFIKA_Matrix
 
+#define Matrix_free EFIKA_Matrix_free
+#define Matrix_iidx EFIKA_Matrix_iidx
+#define Matrix_init EFIKA_Matrix_init
+#define Matrix_sort EFIKA_Matrix_sort
+
 /*----------------------------------------------------------------------------*/
 /*! Configure matrix index and weight types */
 /*----------------------------------------------------------------------------*/
 #include <inttypes.h>
-#ifdef WITH_WIDE
+#ifdef EFIKA_WITH_WIDE
 # define IND_T    "%"PRIu64
 # define VAL_T    "%lf"
 # define STRTOI   strtoul
@@ -39,6 +44,9 @@
 #define PFX  EFIKA_PFX
 #define VAL  EFIKA_VAL
 
+#define ORDER_FLAGS (ASC|DSC)
+#define TYPE_FLAGS  (BFT|COL|DEG|PFX|VAL)
+
 #define strtoi(hd, tl) STRTOI(hd, tl, 0)
 #define strtov         STRTOV
 
@@ -51,6 +59,11 @@
                          111 == (FMT))
 #define has_vtxwgt(FMT) ( 10 == (FMT) ||  11 == (FMT) || 110 == (FMT) || \
                          111 == (FMT))
+
+/*----------------------------------------------------------------------------*/
+/*! BLAS routines. */
+/*----------------------------------------------------------------------------*/
+#define BLAS_csrcsc efika_BLAS_csrcsc
 
 /*----------------------------------------------------------------------------*/
 /*! Garbage collection. */
