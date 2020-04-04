@@ -12,9 +12,6 @@ endif()
 # Include required CMake modules
 include(GenerateExportHeader)
 
-# Check for availability of OpenMP
-find_package(OpenMP)
-
 #-------------------------------------------------------------------------------
 # COMPONENT configuration
 #-------------------------------------------------------------------------------
@@ -37,10 +34,6 @@ target_include_directories(${PROJECT_NAME}
 
 target_include_directories(${PROJECT_NAME}-sdk
   INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src/include)
-
-if(OpenMP_C_FOUND)
-  target_link_libraries(${PROJECT_NAME} PUBLIC OpenMP::OpenMP_C)
-endif()
 
 add_library(Efika::core    ALIAS ${PROJECT_NAME})
 add_library(EfikaSDK::core ALIAS ${PROJECT_NAME}-sdk)
