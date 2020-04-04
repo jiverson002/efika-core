@@ -13,10 +13,19 @@
   unsigned __gc_ret = 0;\
   unsigned __gc_ctr = 0;\
   unsigned __gc_pctr = 0;\
+  unsigned __gc_fctr = 0;\
   void *__gc_ptr[128];\
-  void **__gc_pptr[128]
+  void **__gc_pptr[128];\
+  void (*__gc_free[128])(void*);\
+  void *__gc_fptr[128]
 
-#define __gc_alloc(call)\
+#define GC_assert(cond)\
+  if (!(cond)) {\
+    GC_cleanup();\
+    return -1;\
+  } else (void)0
+
+#define GC_alloc(call)\
   ( __gc_ptr[__gc_ctr] = call\
   , __gc_ptr[__gc_ctr] ? 0 : (GC_cleanup(), __gc_ret = 1)\
   , __gc_ptr[__gc_ctr++]\
@@ -26,23 +35,22 @@
   else\
     (void)0
 
-#define GC_assert(cond)\
-  if (!(cond)) {\
-    GC_cleanup();\
-    return -1;\
-  } else (void)0
-
 #define GC_cleanup()\
-  GC_cleanup_impl(__gc_ctr, __gc_pctr, __gc_ptr, __gc_pptr)
+  GC_cleanup_impl(__gc_ctr, __gc_pctr, __gc_fctr, __gc_ptr, __gc_pptr,\
+                  __gc_free, __gc_fptr)
 
 #define GC_free(xptr)\
-  GC_free_impl(__gc_ctr, __gc_pctr, __gc_ptr, __gc_pptr, xptr)
+  GC_free_impl(__gc_ctr, __gc_pctr, __gc_fctr, __gc_ptr, __gc_pptr, __gc_free,\
+               __gc_fptr, xptr)
 
 #define GC_return         return GC_cleanup(),
 #define GC_register(pptr) __gc_pptr[__gc_pctr++] = (void*)(pptr)
+#define GC_register_free(free, fptr)\
+  __gc_free[__gc_fctr++] = (void (*)(void*))free;\
+  __gc_fptr[__gc_fctr] = fptr
 
-#define GC_malloc(n)     __gc_alloc(malloc(n))
-#define GC_calloc(n, sz) __gc_alloc(calloc(n, sz))
+#define GC_malloc(n)     GC_alloc(malloc(n))
+#define GC_calloc(n, sz) GC_alloc(calloc(n, sz))
 #define GC_realloc(xptr, n)\
   GC_realloc_impl(__gc_ctr, __gc_pctr, __gc_ptr, __gc_pptr, xptr, n)
 
@@ -57,8 +65,8 @@
 /*----------------------------------------------------------------------------*/
 /*! Private API. */
 /*----------------------------------------------------------------------------*/
-void  efika_GC_cleanup_impl(unsigned, unsigned, void **, void ***);
-void  efika_GC_free_impl(unsigned, unsigned, void **, void ***, void *);
+void  efika_GC_cleanup_impl(unsigned, unsigned, unsigned, void **, void ***, void (**)(void*), void **);
+void  efika_GC_free_impl(unsigned, unsigned, unsigned, void **, void ***, void (**)(void*), void **, void *);
 void* efika_GC_realloc_impl(unsigned, unsigned, void **, void ***, void *, size_t);
 
 #endif /* EFIKA_CORE_GC_H */
