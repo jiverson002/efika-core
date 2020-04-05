@@ -25,7 +25,8 @@ generate_export_header(${PROJECT_NAME}
 
 target_sources(${PROJECT_NAME}
   PRIVATE src/free.c src/iidx.c src/init.c src/sort.c src/blas/csrcsc.c
-          src/gc/cleanup.c src/gc/free.c src/gc/realloc.c)
+          src/blas/vsctr.c src/blas/vsctrz.c src/gc/cleanup.c src/gc/free.c
+          src/gc/realloc.c)
 
 target_include_directories(${PROJECT_NAME}
   PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/include
