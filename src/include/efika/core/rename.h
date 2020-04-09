@@ -6,9 +6,11 @@
 #define val_t  EFIKA_val_t
 #define Matrix EFIKA_Matrix
 
+#define Matrix_comp EFIKA_Matrix_comp
 #define Matrix_free EFIKA_Matrix_free
 #define Matrix_iidx EFIKA_Matrix_iidx
 #define Matrix_init EFIKA_Matrix_init
+#define Matrix_norm EFIKA_Matrix_norm
 #define Matrix_sort EFIKA_Matrix_sort
 
 /*----------------------------------------------------------------------------*/
@@ -20,6 +22,7 @@
 # define VAL_T    "%lf"
 # define STRTOI   strtoul
 # define STRTOV   strtod
+# define SQRTV    sqrt
 # define IND_MAX  UINT64_MAX
 # define IND_MIN  0
 # define VAL_MAX  DBL_MAX
@@ -29,6 +32,7 @@
 # define VAL_T    "%f"
 # define STRTOI   (ind_t)strtoul
 # define STRTOV   (val_t)strtod
+# define SQRTV    sqrtf
 # define IND_MAX  UINT32_MAX
 # define IND_MIN  0
 # define VAL_MAX  FLT_MAX
@@ -49,6 +53,7 @@
 
 #define strtoi(hd, tl) STRTOI(hd, tl, 0)
 #define strtov         STRTOV
+#define sqrtv          SQRTV
 
 /*----------------------------------------------------------------------------*/
 /*! Format checking macros. */
@@ -64,8 +69,8 @@
 /*! BLAS routines. */
 /*----------------------------------------------------------------------------*/
 #define BLAS_csrcsc efika_BLAS_csrcsc
-#define BLAS_vsctr  efika_BLAS_vsctr
-#define BLAS_vsctrz efika_BLAS_vsctrz
+#define BLAS_vnrm2  efika_BLAS_vnrm2
+#define BLAS_vscal  efika_BLAS_vscal
 
 /*----------------------------------------------------------------------------*/
 /*! Garbage collection. */

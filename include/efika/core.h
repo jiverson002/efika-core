@@ -65,9 +65,11 @@ enum EFIKA_Flag {
 extern "C" {
 #endif
 
+int  EFIKA_Matrix_comp(EFIKA_Matrix *);
 void EFIKA_Matrix_free(EFIKA_Matrix *);
 int  EFIKA_Matrix_iidx(EFIKA_Matrix const *, EFIKA_Matrix *);
 int  EFIKA_Matrix_init(EFIKA_Matrix *);
+int  EFIKA_Matrix_norm(EFIKA_Matrix *);
 int  EFIKA_Matrix_sort(EFIKA_Matrix *, int);
 
 #ifdef __cplusplus

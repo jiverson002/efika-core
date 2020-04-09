@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: MIT */
+#include "efika/core.h"
+
 #include "efika/core/blas.h"
 #include "efika/core/export.h"
 #include "efika/core/gc.h"
 #include "efika/core/rename.h"
-#include "efika/core.h"
 
 /*----------------------------------------------------------------------------*/
 /*! Create inverted index.
