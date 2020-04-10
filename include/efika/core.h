@@ -22,8 +22,6 @@ typedef float    EFIKA_val_t;
 /*----------------------------------------------------------------------------*/
 typedef struct EFIKA_Matrix {
   int fmt;         /*!< metis format specifier [000] */
-  int diag;        /*!< [0] - nothing, 1 - rows split on diagonal, 2 - rows
-                        split on diagonal and on vectorizable value. */
   int sort;        /*!< [0] - rows unsorted, 1 - rows sorted asc, 2 - rows
                         sorted dsc */
   int symm;        /*!< [0] - non-symmetric, 1 - symmetric */
@@ -71,6 +69,7 @@ int  EFIKA_Matrix_iidx(EFIKA_Matrix const *, EFIKA_Matrix *);
 int  EFIKA_Matrix_init(EFIKA_Matrix *);
 int  EFIKA_Matrix_norm(EFIKA_Matrix *);
 int  EFIKA_Matrix_sort(EFIKA_Matrix *, int);
+int  EFIKA_Matrix_test(EFIKA_Matrix const *);
 
 #ifdef __cplusplus
 }

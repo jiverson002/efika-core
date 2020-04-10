@@ -12,6 +12,7 @@
 #define Matrix_init EFIKA_Matrix_init
 #define Matrix_norm EFIKA_Matrix_norm
 #define Matrix_sort EFIKA_Matrix_sort
+#define Matrix_test EFIKA_Matrix_test
 
 /*----------------------------------------------------------------------------*/
 /*! Configure matrix index and weight types */
