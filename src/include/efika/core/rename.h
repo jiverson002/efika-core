@@ -70,8 +70,11 @@
 /*! BLAS routines. */
 /*----------------------------------------------------------------------------*/
 #define BLAS_csrcsc efika_BLAS_csrcsc
+#define BLAS_vdoti  efika_BLAS_vdoti
 #define BLAS_vnrm2  efika_BLAS_vnrm2
 #define BLAS_vscal  efika_BLAS_vscal
+#define BLAS_vsctr  efika_BLAS_vsctr
+#define BLAS_vsctrz efika_BLAS_vsctrz
 
 /*----------------------------------------------------------------------------*/
 /*! Garbage collection. */
