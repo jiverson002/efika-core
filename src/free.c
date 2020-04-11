@@ -16,4 +16,7 @@ Matrix_free(Matrix * const M)
   free(M->a);
   free(M->vsiz);
   free(M->vwgt);
+
+  if (M->pp)
+    M->pp_free(M->pp);
 }

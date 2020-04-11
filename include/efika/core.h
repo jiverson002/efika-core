@@ -39,6 +39,9 @@ typedef struct EFIKA_Matrix {
   EFIKA_ind_t * vsiz;
   /*! vertex weights (metis only) */
   EFIKA_val_t * vwgt;
+
+  void * pp;              /*!< pointer to preprocessed data */
+  void (*pp_free)(void*); /*!< pointer to function to free preprocessed data */
 } EFIKA_Matrix;
 
 /*----------------------------------------------------------------------------*/

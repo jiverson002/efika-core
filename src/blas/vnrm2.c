@@ -3,8 +3,8 @@
 
 #include "efika/core.h"
 
+#include "efika/core/blas.h"
 #include "efika/core/export.h"
-#include "efika/core/rename.h"
 
 /*----------------------------------------------------------------------------*/
 /*! Compute the Euclidean length (l_2 norm) of vector x. */

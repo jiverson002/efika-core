@@ -2,10 +2,16 @@
 #ifndef EFIKA_CORE_RENAME_H
 #define EFIKA_CORE_RENAME_H 1
 
+/*----------------------------------------------------------------------------*/
+/*! Core datatypes. */
+/*----------------------------------------------------------------------------*/
 #define ind_t  EFIKA_ind_t
 #define val_t  EFIKA_val_t
 #define Matrix EFIKA_Matrix
 
+/*----------------------------------------------------------------------------*/
+/*! Core functions. */
+/*----------------------------------------------------------------------------*/
 #define Matrix_comp EFIKA_Matrix_comp
 #define Matrix_free EFIKA_Matrix_free
 #define Matrix_iidx EFIKA_Matrix_iidx
@@ -21,25 +27,28 @@
 #ifdef EFIKA_WITH_WIDE
 # define IND_T    "%"PRIu64
 # define VAL_T    "%lf"
-# define STRTOI   strtoul
-# define STRTOV   strtod
-# define SQRTV    sqrt
 # define IND_MAX  UINT64_MAX
 # define IND_MIN  0
 # define VAL_MAX  DBL_MAX
 # define VAL_MIN  -(DBL_MAX)
+# define strtoi(hd, tl) (ind_t)strtoul(hd, tl, 0)
+# define strtov         strtod
+# define sqrtv          sqrt
 #else
 # define IND_T    "%"PRIu32
 # define VAL_T    "%f"
-# define STRTOI   (ind_t)strtoul
-# define STRTOV   (val_t)strtod
-# define SQRTV    sqrtf
 # define IND_MAX  UINT32_MAX
 # define IND_MIN  0
 # define VAL_MAX  FLT_MAX
 # define VAL_MIN  -(FLT_MAX)
+# define strtoi(hd, tl) (ind_t)strtoul(hd, tl, 0)
+# define strtov         (val_t)strtod
+# define sqrtv          sqrtf
 #endif
 
+/*----------------------------------------------------------------------------*/
+/*! Flags. */
+/*----------------------------------------------------------------------------*/
 #define NONE EFIKA_NONE
 #define ASC  EFIKA_ASC
 #define DSC  EFIKA_DSC
@@ -52,10 +61,6 @@
 #define ORDER_FLAGS (ASC|DSC)
 #define TYPE_FLAGS  (BFT|COL|DEG|PFX|VAL)
 
-#define strtoi(hd, tl) STRTOI(hd, tl, 0)
-#define strtov         STRTOV
-#define sqrtv          SQRTV
-
 /*----------------------------------------------------------------------------*/
 /*! Format checking macros. */
 /*----------------------------------------------------------------------------*/
@@ -66,21 +71,4 @@
 #define has_vtxwgt(FMT) ( 10 == (FMT) ||  11 == (FMT) || 110 == (FMT) || \
                          111 == (FMT))
 
-/*----------------------------------------------------------------------------*/
-/*! BLAS routines. */
-/*----------------------------------------------------------------------------*/
-#define BLAS_csrcsc efika_BLAS_csrcsc
-#define BLAS_vdoti  efika_BLAS_vdoti
-#define BLAS_vnrm2  efika_BLAS_vnrm2
-#define BLAS_vscal  efika_BLAS_vscal
-#define BLAS_vsctr  efika_BLAS_vsctr
-#define BLAS_vsctrz efika_BLAS_vsctrz
-
-/*----------------------------------------------------------------------------*/
-/*! Garbage collection. */
-/*----------------------------------------------------------------------------*/
-#define GC_cleanup_impl efika_GC_cleanup_impl
-#define GC_free_impl    efika_GC_free_impl
-#define GC_realloc_impl efika_GC_realloc_impl
-
-#endif /* EFIKA_IMPL_RENAME_H */
+#endif /* EFIKA_CORE_RENAME_H */

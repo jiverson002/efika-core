@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: MIT */
 #include "efika/core.h"
 
+#include "efika/core/blas.h"
 #include "efika/core/export.h"
-#include "efika/core/rename.h"
 
 /*----------------------------------------------------------------------------*/
 /*! Dot product of a sparse vector x in compressed-vector storage mode and a

@@ -4,6 +4,8 @@
 
 #include <stdlib.h>
 
+#include "efika/core.h"
+
 #include "efika/core/rename.h"
 
 /*----------------------------------------------------------------------------*/
@@ -63,10 +65,17 @@
 #define unsafe_free    free
 
 /*----------------------------------------------------------------------------*/
+/*! Garbage collection. */
+/*----------------------------------------------------------------------------*/
+#define GC_cleanup_impl efika_GC_cleanup_impl
+#define GC_free_impl    efika_GC_free_impl
+#define GC_realloc_impl efika_GC_realloc_impl
+
+/*----------------------------------------------------------------------------*/
 /*! Private API. */
 /*----------------------------------------------------------------------------*/
-void  efika_GC_cleanup_impl(unsigned, unsigned, unsigned, void **, void ***, void (**)(void*), void **);
-void  efika_GC_free_impl(unsigned, unsigned, unsigned, void **, void ***, void (**)(void*), void **, void *);
-void* efika_GC_realloc_impl(unsigned, unsigned, void **, void ***, void *, size_t);
+void  GC_cleanup_impl(unsigned, unsigned, unsigned, void **, void ***, void (**)(void*), void **);
+void  GC_free_impl(unsigned, unsigned, unsigned, void **, void ***, void (**)(void*), void **, void *);
+void* GC_realloc_impl(unsigned, unsigned, void **, void ***, void *, size_t);
 
 #endif /* EFIKA_CORE_GC_H */

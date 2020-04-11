@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: MIT */
 #include "efika/core.h"
 
+#include "efika/core/blas.h"
 #include "efika/core/export.h"
-#include "efika/core/rename.h"
 
 /*----------------------------------------------------------------------------*/
 /*! Multiply a vector x by a scalar and store in the vector x. */
