@@ -3,12 +3,12 @@
 #define PP_ANY_H 1
 
 #define PP_ANY(hd, ...)               \
-  (hd) ||                             \
+  ( (hd) ||                           \
   PP_IFELSE(PP_HASARGS(__VA_ARGS__))( \
     PP_DEFER2(PP__ANY)()(__VA_ARGS__) \
   )(                                  \
     (__VA_ARGS__)                     \
-  )
+  ) )
 #define PP__ANY() PP_ANY
 
 /*----------------------------------------------------------------------------*/

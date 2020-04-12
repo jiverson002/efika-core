@@ -7,13 +7,13 @@
 /*----------------------------------------------------------------------------*/
 /*! Configure matrix index and weight types. */
 /*----------------------------------------------------------------------------*/
-#ifdef EFIKA_WITH_WIDE
+#ifndef EFIKA_WITH_SHORT
 /*! Row/column id variable type. */
-typedef uint64_t EFIKA_ind_t;
+typedef unsigned long EFIKA_ind_t;
 /*! Value variable type. */
-typedef double   EFIKA_val_t;
+typedef double        EFIKA_val_t;
 #else
-typedef uint32_t EFIKA_ind_t;
+typedef unsigned EFIKA_ind_t;
 typedef float    EFIKA_val_t;
 #endif
 
@@ -67,10 +67,13 @@ extern "C" {
 #endif
 
 int  EFIKA_Matrix_comp(EFIKA_Matrix *);
+int  EFIKA_Matrix_cord(EFIKA_Matrix *, int);
 void EFIKA_Matrix_free(EFIKA_Matrix *);
 int  EFIKA_Matrix_iidx(EFIKA_Matrix const *, EFIKA_Matrix *);
 int  EFIKA_Matrix_init(EFIKA_Matrix *);
 int  EFIKA_Matrix_norm(EFIKA_Matrix *);
+int  EFIKA_Matrix_perm(EFIKA_Matrix *, EFIKA_ind_t *, EFIKA_ind_t *);
+int  EFIKA_Matrix_rord(EFIKA_Matrix *, int);
 int  EFIKA_Matrix_sort(EFIKA_Matrix *, int);
 int  EFIKA_Matrix_test(EFIKA_Matrix const *);
 

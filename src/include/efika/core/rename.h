@@ -13,21 +13,25 @@
 /*! Core functions. */
 /*----------------------------------------------------------------------------*/
 #define Matrix_comp EFIKA_Matrix_comp
+#define Matrix_cord EFIKA_Matrix_cord
 #define Matrix_free EFIKA_Matrix_free
 #define Matrix_iidx EFIKA_Matrix_iidx
 #define Matrix_init EFIKA_Matrix_init
 #define Matrix_norm EFIKA_Matrix_norm
+#define Matrix_perm EFIKA_Matrix_perm
+#define Matrix_rord EFIKA_Matrix_rord
 #define Matrix_sort EFIKA_Matrix_sort
 #define Matrix_test EFIKA_Matrix_test
 
 /*----------------------------------------------------------------------------*/
 /*! Configure matrix index and weight types */
 /*----------------------------------------------------------------------------*/
+#include <float.h>
 #include <inttypes.h>
-#ifdef EFIKA_WITH_WIDE
-# define IND_T    "%"PRIu64
-# define VAL_T    "%lf"
-# define IND_MAX  UINT64_MAX
+#ifndef EFIKA_WITH_SHORT
+# define PRIind   "%lu"
+# define PRIval   "%lf"
+# define IND_MAX  ULONG_MAX
 # define IND_MIN  0
 # define VAL_MAX  DBL_MAX
 # define VAL_MIN  -(DBL_MAX)
@@ -35,9 +39,9 @@
 # define strtov         strtod
 # define sqrtv          sqrt
 #else
-# define IND_T    "%"PRIu32
-# define VAL_T    "%f"
-# define IND_MAX  UINT32_MAX
+# define PRIind   "%u"
+# define PRIval   "%f"
+# define IND_MAX  UINT_MAX
 # define IND_MIN  0
 # define VAL_MAX  FLT_MAX
 # define VAL_MIN  -(FLT_MAX)
