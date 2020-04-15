@@ -7,5 +7,5 @@
 /*----------------------------------------------------------------------------*/
 /*! Config variables. */
 /*----------------------------------------------------------------------------*/
-EFIKA_CORE_EXPORT int debug;
-EFIKA_CORE_EXPORT int verbose;
+EFIKA_CORE_EXPORT int debug = 0;
+EFIKA_CORE_EXPORT int verbose = 0;
