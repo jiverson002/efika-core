@@ -2,8 +2,6 @@
 #ifndef EFIKA_CORE_H
 #define EFIKA_CORE_H 1
 
-#include <inttypes.h>
-
 /*----------------------------------------------------------------------------*/
 /*! Configure matrix index and weight types. */
 /*----------------------------------------------------------------------------*/
@@ -16,6 +14,12 @@ typedef double        EFIKA_val_t;
 typedef unsigned EFIKA_ind_t;
 typedef float    EFIKA_val_t;
 #endif
+
+/*----------------------------------------------------------------------------*/
+/*! Environment settings. */
+/*----------------------------------------------------------------------------*/
+extern int EFIKA_debug;
+extern int EFIKA_verbose;
 
 /*----------------------------------------------------------------------------*/
 /*! Sparse matrix data structure */
