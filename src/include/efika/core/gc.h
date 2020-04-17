@@ -48,8 +48,8 @@
 #define GC_return         return GC_cleanup(),
 #define GC_register(pptr) __gc_pptr[__gc_pctr++] = (void*)(pptr)
 #define GC_register_free(free, fptr)\
-  __gc_free[__gc_fctr++] = (void (*)(void*))free;\
-  __gc_fptr[__gc_fctr] = fptr
+  __gc_free[__gc_fctr] = (void (*)(void*))free;\
+  __gc_fptr[__gc_fctr++] = fptr
 
 #define GC_malloc(n)     GC_alloc(malloc(n))
 #define GC_calloc(n, sz) GC_alloc(calloc(n, sz))
