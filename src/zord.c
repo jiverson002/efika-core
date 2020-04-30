@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: MIT */
+#include <assert.h>
 #include <limits.h>
 #include <stdlib.h>
 
@@ -70,7 +71,7 @@ to_zindex(ind_t const r, ind_t const c)
   return z;
 }
 
-static inline struct coord
+static inline ind_t
 from_zindex(struct zindex const z)
 {
   size_t const half = sizeof(ind_t) * CHAR_BIT / 2;
@@ -84,15 +85,10 @@ from_zindex(struct zindex const z)
   rc.r |= res.r << half;
   rc.c |= res.c << half;
 
-  return rc;
-}
+  assert(rc.r < 65536);
+  assert(rc.c < 65536);
 
-static inline unsigned char
-to_quad(struct zindex const z)
-{
-  ind_t const one = 1;
-  struct coord const rc = from_zindex(z);
-  return ((rc.r & one) << 1) | (rc.c & one);
+  return rc.r << half | rc.c;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -129,6 +125,9 @@ Matrix_zord(Matrix const * const M, Matrix * const Z)
   if (!pp_all(m_ia, m_ja))
     return -1;
 
+  assert(nr < 65536);
+  assert(M->nc < 65536);
+
   /* allocate temporary storage */
   struct kv * const kv = GC_malloc(nnz * sizeof(*kv));
 
@@ -144,14 +143,14 @@ Matrix_zord(Matrix const * const M, Matrix * const Z)
   qsort(kv, nnz, sizeof(*kv), kv_cmp);
 
   /* allocate new storage */
-  unsigned char * const z_za = GC_malloc(nnz * sizeof(*z_za));
+  ind_t * const z_za = GC_malloc(nnz * sizeof(*z_za));
   val_t * z_a = NULL;
   if (m_a)
     z_a = GC_malloc(nnz * sizeof(*z_a));
 
   /* setup z-ordered matrix */
   for (ind_t k = 0; k < nnz; k++) {
-    z_za[k] = to_quad(kv[k].k);
+    z_za[k] = from_zindex(kv[k].k);
     if (m_a)
       z_a[k] = kv[k].v;
   }

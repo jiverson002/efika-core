@@ -36,8 +36,12 @@ class Matrix : public ::testing::Test {
     std::array<EFIKA_ind_t, 5> m_ia_ { 0, 1, 2, 5, 8 };
     std::array<EFIKA_ind_t, 8> m_ja_ { 0, 1, 1, 3, 5, 0, 3, 7 };
     std::array<EFIKA_val_t, 8> m_a_  { 0, 1, 2, 3, 4, 5, 6, 7 };
-    std::array<unsigned char, 9> z_za_ { 8, 6, 0, 2, 2, 4, 6, 0, 7 };
-    std::array<EFIKA_val_t, 8>   z_a_  { 0, 1, 2, 5, 3, 6, 4, 7 };
+    std::array<EFIKA_ind_t, 8> z_za_ {
+      0x00000000 /* r0c0 */, 0x00010001 /* r1c1 */, 0x00020001 /* r2c1 */,
+      0x00030000 /* r3c0 */, 0x00020003 /* r2c3 */, 0x00030003 /* r3c3 */,
+      0x00020005 /* r2c5 */, 0x00030007 /* r3c7 */
+    };
+    std::array<EFIKA_val_t, 8> z_a_  { 0, 1, 2, 5, 3, 6, 4, 7 };
     EFIKA_Matrix M_;
 };
 
@@ -52,8 +56,10 @@ TEST_F(Matrix, toCSB) {
   err = EFIKA_Matrix_zord(&this->M_, &Z);
   ASSERT_EQ(0, err);
 
-  for (int i = 0; i < this->m_a_.size(); i++)
-    ASSERT_EQ(this->z_a_[i],  Z.a[i]);
+  for (int i = 0; i < this->m_a_.size(); i++) {
+    ASSERT_EQ(this->z_za_[i],  Z.za[i]) << "i = " << i;
+    ASSERT_EQ(this->z_a_[i],  Z.a[i]) << "i = " << i;
+  }
 
   EFIKA_Matrix_free(&Z);
 }

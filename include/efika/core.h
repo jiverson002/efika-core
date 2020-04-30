@@ -42,10 +42,10 @@ typedef struct EFIKA_Matrix {
   EFIKA_ind_t nr;   /*!< number of rows */
   EFIKA_ind_t nc;   /*!< number of columns */
   EFIKA_ind_t nnz;  /*!< number of non-zeros */
-  EFIKA_ind_t   * restrict ia; /*!< sparse matrix row index array */
-  EFIKA_ind_t   * restrict ja; /*!< sparse matrix column index array */
-  unsigned char * restrict za; /*!< sparse matrix z-index array */
-  EFIKA_val_t   * restrict a;  /*!< sparse matrix non-zero entries */
+  EFIKA_ind_t * restrict ia; /*!< sparse matrix row index array */
+  EFIKA_ind_t * restrict ja; /*!< sparse matrix column index array */
+  EFIKA_ind_t * restrict za; /*!< sparse matrix z-index array */
+  EFIKA_val_t * restrict a;  /*!< sparse matrix non-zero entries */
 
   /*! number of weights associated with each vertex (metis only) */
   EFIKA_ind_t ncon;

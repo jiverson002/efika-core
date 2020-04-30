@@ -12,7 +12,7 @@ Matrix_free(Matrix * const M)
 {
   free(M->ia);
   free(M->ja);
-  //free(M->za);
+  free(M->za);
   free(M->a);
   free(M->vsiz);
   free(M->vwgt);
