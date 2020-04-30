@@ -42,9 +42,10 @@ typedef struct EFIKA_Matrix {
   EFIKA_ind_t nr;   /*!< number of rows */
   EFIKA_ind_t nc;   /*!< number of columns */
   EFIKA_ind_t nnz;  /*!< number of non-zeros */
-  EFIKA_ind_t * restrict ia; /*!< sparse matrix row index array */
-  EFIKA_ind_t * restrict ja; /*!< sparse matrix column index array */
-  EFIKA_val_t * restrict a;  /*!< sparse matrix non-zero entries */
+  EFIKA_ind_t   * restrict ia; /*!< sparse matrix row index array */
+  EFIKA_ind_t   * restrict ja; /*!< sparse matrix column index array */
+  unsigned char * restrict za; /*!< sparse matrix z-index array */
+  EFIKA_val_t   * restrict a;  /*!< sparse matrix non-zero entries */
 
   /*! number of weights associated with each vertex (metis only) */
   EFIKA_ind_t ncon;
@@ -90,6 +91,10 @@ EFIKA_EXPORT int  EFIKA_Matrix_perm(EFIKA_Matrix *, EFIKA_ind_t *, EFIKA_ind_t *
 EFIKA_EXPORT int  EFIKA_Matrix_rord(EFIKA_Matrix *, int);
 EFIKA_EXPORT int  EFIKA_Matrix_sort(EFIKA_Matrix *, int);
 EFIKA_EXPORT int  EFIKA_Matrix_test(EFIKA_Matrix const *);
+EFIKA_EXPORT int  EFIKA_Matrix_rord(EFIKA_Matrix *, int);
+EFIKA_EXPORT int  EFIKA_Matrix_sort(EFIKA_Matrix *, int);
+EFIKA_EXPORT int  EFIKA_Matrix_test(EFIKA_Matrix const *);
+EFIKA_EXPORT int  EFIKA_Matrix_zord(EFIKA_Matrix const *, EFIKA_Matrix *);
 
 #ifdef __cplusplus
 }

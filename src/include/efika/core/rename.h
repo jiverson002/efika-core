@@ -29,6 +29,7 @@
 #define Matrix_rord EFIKA_Matrix_rord
 #define Matrix_sort EFIKA_Matrix_sort
 #define Matrix_test EFIKA_Matrix_test
+#define Matrix_zord EFIKA_Matrix_zord
 
 /*----------------------------------------------------------------------------*/
 /*! Configure matrix index and weight types */
