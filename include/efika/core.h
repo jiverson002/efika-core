@@ -2,10 +2,17 @@
 #ifndef EFIKA_CORE_H
 #define EFIKA_CORE_H 1
 
+#ifdef __cplusplus
+# ifndef restrict
+#   define undef_restrict
+#   define restrict
+# endif
+#endif
+
 /*----------------------------------------------------------------------------*/
 /*! Configure matrix index and weight types. */
 /*----------------------------------------------------------------------------*/
-#ifndef EFIKA_WITH_SHORT
+#ifdef EFIKA_WITH_LONG
 /*! Row/column id variable type. */
 typedef unsigned long EFIKA_ind_t;
 /*! Value variable type. */
@@ -33,16 +40,16 @@ typedef struct EFIKA_Matrix {
   EFIKA_ind_t nr;   /*!< number of rows */
   EFIKA_ind_t nc;   /*!< number of columns */
   EFIKA_ind_t nnz;  /*!< number of non-zeros */
-  EFIKA_ind_t * ia; /*!< sparse matrix row index array */
-  EFIKA_ind_t * ja; /*!< sparse matrix column index array */
-  EFIKA_val_t * a;  /*!< sparse matrix non-zero entries */
+  EFIKA_ind_t * restrict ia; /*!< sparse matrix row index array */
+  EFIKA_ind_t * restrict ja; /*!< sparse matrix column index array */
+  EFIKA_val_t * restrict a;  /*!< sparse matrix non-zero entries */
 
   /*! number of weights associated with each vertex (metis only) */
   EFIKA_ind_t ncon;
   /*! vertex size (metis only) */
-  EFIKA_ind_t * vsiz;
+  EFIKA_ind_t * restrict vsiz;
   /*! vertex weights (metis only) */
-  EFIKA_val_t * vwgt;
+  EFIKA_val_t * restrict vwgt;
 
   void * pp;              /*!< pointer to preprocessed data */
   void (*pp_free)(void*); /*!< pointer to function to free preprocessed data */
@@ -71,6 +78,7 @@ extern "C" {
 #endif
 
 int  EFIKA_Matrix_comp(EFIKA_Matrix *);
+int  EFIKA_Matrix_copy(EFIKA_Matrix const *, EFIKA_Matrix *);
 int  EFIKA_Matrix_cord(EFIKA_Matrix *, int);
 void EFIKA_Matrix_free(EFIKA_Matrix *);
 int  EFIKA_Matrix_iidx(EFIKA_Matrix const *, EFIKA_Matrix *);
@@ -83,6 +91,12 @@ int  EFIKA_Matrix_test(EFIKA_Matrix const *);
 
 #ifdef __cplusplus
 }
+#endif
+
+#ifdef __cplusplus
+# ifdef undef_restrict
+#   undef restrict
+# endif
 #endif
 
 #endif /* EFIKA_CORE_H */

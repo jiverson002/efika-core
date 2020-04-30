@@ -4,11 +4,6 @@ cmake_minimum_required(VERSION 3.14)
 # Subproject of efika
 project(efika-core)
 
-# Include build configurations (compiler standards, options, etc.)
-if (CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME AND EFIKA_BUILDCONFIG_FILE)
-  include(${EFIKA_BUILDCONFIG_FILE})
-endif()
-
 # Include required CMake modules
 include(GenerateExportHeader)
 
@@ -24,8 +19,8 @@ generate_export_header(${PROJECT_NAME}
   PREFIX_NAME      EFIKA_)
 
 target_sources(${PROJECT_NAME}
-  PRIVATE src/comp.c src/cord.c src/free.c src/globals.c src/iidx.c src/init.c
-          src/norm.c src/perm.c src/rord.c src/sort.c src/test.c
+  PRIVATE src/comp.c src/copy.c src/cord.c src/free.c src/globals.c src/iidx.c
+          src/init.c src/norm.c src/perm.c src/rord.c src/sort.c src/test.c
           src/blas/csrcsc.c src/blas/vdoti.c src/blas/vnrm2.c src/blas/vscal.c
           src/blas/vsctr.c src/blas/vsctrz.c src/gc/cleanup.c src/gc/free.c
           src/gc/realloc.c)

@@ -130,7 +130,7 @@ rord_val(Matrix * const M, int const order)
 /*----------------------------------------------------------------------------*/
 /*! Function to re-order rows of a matrix. */
 /*----------------------------------------------------------------------------*/
-extern int
+EFIKA_CORE_EXPORT int
 Matrix_rord(Matrix * const M, int const flags)
 {
   switch (flags & TYPE_FLAGS) {

@@ -19,6 +19,7 @@
 /*! Core functions. */
 /*----------------------------------------------------------------------------*/
 #define Matrix_comp EFIKA_Matrix_comp
+#define Matrix_copy EFIKA_Matrix_copy
 #define Matrix_cord EFIKA_Matrix_cord
 #define Matrix_free EFIKA_Matrix_free
 #define Matrix_iidx EFIKA_Matrix_iidx
@@ -34,7 +35,7 @@
 /*----------------------------------------------------------------------------*/
 #include <float.h>
 #include <inttypes.h>
-#ifndef EFIKA_WITH_SHORT
+#ifdef EFIKA_WITH_LONG
 # define PRIind   "%lu"
 # define PRIval   "%lf"
 # define IND_MAX  ULONG_MAX
