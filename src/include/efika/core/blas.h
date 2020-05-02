@@ -10,6 +10,7 @@
 /*! BLAS routines. */
 /*----------------------------------------------------------------------------*/
 #define BLAS_csrcsc efika_BLAS_csrcsc
+#define BLAS_vgthrz efika_BLAS_vgthrz
 #define BLAS_vdoti  efika_BLAS_vdoti
 #define BLAS_vnrm2  efika_BLAS_vnrm2
 #define BLAS_vscal  efika_BLAS_vscal
@@ -26,6 +27,7 @@ extern "C" {
 void  BLAS_csrcsc(ind_t, ind_t, ind_t const *, ind_t const *,
                   val_t const *, ind_t *, ind_t *, val_t *);
 val_t BLAS_vdoti(ind_t, val_t const *, ind_t const *, val_t const *);
+void  BLAS_vgthrz(ind_t, val_t *, val_t *, ind_t const *);
 val_t BLAS_vnrm2(ind_t, val_t const *);
 void  BLAS_vscal(ind_t, val_t, val_t *);
 void  BLAS_vsctr(ind_t, val_t const *, ind_t const *, val_t *);

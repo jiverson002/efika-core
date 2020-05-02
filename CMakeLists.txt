@@ -21,9 +21,9 @@ add_library(${Library_NAME}::${component_NAME} ALIAS ${PROJECT_NAME})
 target_sources(${PROJECT_NAME}
   PRIVATE src/comp.c src/copy.c src/cord.c src/free.c src/globals.c src/iidx.c
           src/init.c src/norm.c src/perm.c src/rord.c src/sort.c src/test.c
-          src/zord.c src/blas/csrcsc.c src/blas/vdoti.c src/blas/vnrm2.c
-          src/blas/vscal.c src/blas/vsctr.c src/blas/vsctrz.c src/gc/cleanup.c
-          src/gc/free.c src/gc/realloc.c)
+          src/zord.c src/blas/csrcsc.c src/blas/spgemm.c src/blas/vdoti.c
+          src/blas/vgthrz.c src/blas/vnrm2.c src/blas/vscal.c src/blas/vsctr.c
+          src/blas/vsctrz.c src/gc/cleanup.c src/gc/free.c src/gc/realloc.c)
 
 target_include_directories(${PROJECT_NAME}
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -51,6 +51,13 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   if(BUILD_TESTING)
     add_subdirectory(test)
   endif()
+endif()
+
+#-------------------------------------------------------------------------------
+# BENCHMARK configuration
+#-------------------------------------------------------------------------------
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+  add_subdirectory(bench)
 endif()
 
 #-------------------------------------------------------------------------------
