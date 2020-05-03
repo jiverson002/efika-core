@@ -47,7 +47,7 @@ class Matrix : public ::testing::Test {
 
 } // namespace
 
-TEST_F(Matrix, toCSB) {
+TEST_F(Matrix, toRSB) {
   EFIKA_Matrix Z;
 
   int err = EFIKA_Matrix_init(&Z);

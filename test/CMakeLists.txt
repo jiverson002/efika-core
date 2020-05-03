@@ -8,10 +8,10 @@ include(GoogleTest)
 add_executable(${PROJECT_NAME}-tests)
 
 target_sources(${PROJECT_NAME}-tests
-  PRIVATE test_matrix.cc)
+  PRIVATE test_blas.cc test_matrix.cc)
 
 target_link_libraries(${PROJECT_NAME}-tests
-  PRIVATE gtest gtest_main ${PROJECT_NAME})
+  PRIVATE gtest gtest_main ${PROJECT_NAME} EfikaSDK::core)
 
 #-------------------------------------------------------------------------------
 # GoogleTest configuration
@@ -29,3 +29,15 @@ set_target_properties(gtest_main
 
 gtest_discover_tests(${PROJECT_NAME}-tests
   PROPERTIES TIMEOUT 3600)
+
+#-------------------------------------------------------------------------------
+# Declare efika dependencies
+#-------------------------------------------------------------------------------
+foreach(dep data)
+  FetchContent_Declare(efika-${dep}
+    GIT_REPOSITORY git@github.com:jiverson002/efika-${dep}.git)
+
+  FetchContent_MakeAvailable(efika-${dep})
+
+  target_link_libraries(${PROJECT_NAME}-tests PRIVATE Efika::${dep})
+endforeach()

@@ -30,7 +30,7 @@ BLAS_spgemm_csr_csc(
   val_t       * const restrict h
 )
 {
-  ib[0] = 0;
+  ic[0] = 0;
   for (ind_t i = 0, nnz = 0; i < m; i++) {
     BLAS_vsctr(ia[i + 1] - ia[i], a + ia[i], ja + ia[i], h);
 
@@ -47,8 +47,8 @@ BLAS_spgemm_csr_csc(
 }
 
 /*----------------------------------------------------------------------------*/
-/*! Sparse-sparse matrix multiplication C = A * B, where A is stored in CSR
- *  format and B is stored in CSC format, but treating B as an inverted index.
+/*! Sparse-sparse matrix multiplication C = A * B, where A and B are stored in
+ *  CSR format and B is treated as an inverted index.
  *
  *  Algorithm:
  *    for each row i in A:
@@ -95,9 +95,9 @@ BLAS_spgemm_csr_idx(
       }
     }
 
-    BLAS_vgthrz(nnz, spa, c, jc + ic[i]);
-
     ic[i + 1] = nnz;
+
+    BLAS_vgthrz(ic[i + 1] - ic[i], spa, c + ic[i], jc + ic[i]);
   }
 }
 
@@ -118,6 +118,12 @@ BLAS_spgemm_rsb_rsb(
 )
 {
   for (ind_t i = 0, nnnz = 0; i < nnz; i++) {
-
+    (void)nnnz;
   }
+  (void)za;
+  (void)a;
+  (void)zb;
+  (void)b;
+  (void)zc;
+  (void)c;
 }
