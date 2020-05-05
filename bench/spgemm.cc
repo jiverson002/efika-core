@@ -2,96 +2,104 @@
 #include <array>
 
 #include "celero/Celero.h"
+
 #include "efika/core.h"
 
 #include "efika/core/blas.h"
+#include "efika/data/rcv1_10k.h"
 
 namespace {
 
 class SpGEMMFixture : public ::celero::TestFixture {
   public:
     void setUp(const ::celero::TestFixture::ExperimentValue&) override {
-      A_.nr  = nr_;
-      A_.nc  = nc_;
-      A_.nnz = nnz_;
-      A_.ia = A_ia_.data();
-      A_.ja = A_ja_.data();
-      A_.a  = A_a_.data();
-      B1_.nr  = nr_;
-      B1_.nc  = nc_;
-      B1_.nnz = nnz_;
-      B1_.ia = B1_ia_.data();
-      B1_.ja = B1_ja_.data();
-      B1_.a  = B1_a_.data();
-      B2_.nr  = nc_;
-      B2_.nc  = nr_;
-      B2_.nnz = nnz_;
-      B2_.ia = B2_ia_.data();
-      B2_.ja = B2_ja_.data();
-      B2_.a  = B2_a_.data();
-      C1_.nr  = nr_;
-      C1_.nc  = nr_;
-      C1_.nnz = C1_a_.size();
-      C1_.ia = C1_ia_.data();
-      C1_.ja = C1_ja_.data();
-      C1_.a  = C1_a_.data();
-      C2_.nr  = nr_;
-      C2_.nc  = nr_;
-      C2_.nnz = C2_a_.size();
-      C2_.ia = C2_ia_.data();
-      C2_.ja = C2_ja_.data();
-      C2_.a  = C2_a_.data();
+      if (int err = EFIKA_Matrix_init(&A_))
+        throw std::runtime_error("Could not initialize matrix A");
+
+      if (int err = EFIKA_Matrix_init(&B1_))
+        throw std::runtime_error("Could not initialize matrix B1");
+
+      if (int err = EFIKA_Matrix_init(&B2_))
+        throw std::runtime_error("Could not initialize matrix B2");
+
+      if (int err = EFIKA_Matrix_init(&C1_))
+        throw std::runtime_error("Could not initialize matrix C1");
+
+      if (int err = EFIKA_Matrix_init(&C2_))
+        throw std::runtime_error("Could not initialize matrix C2");
+
+      A_.nr  = rcv1_10k_nr;
+      A_.nc  = rcv1_10k_nc;
+      A_.nnz = rcv1_10k_nnz;
+      A_.ia  = rcv1_10k_ia;
+      A_.ja  = rcv1_10k_ja;
+      A_.a   = rcv1_10k_a;
+
+      B1_.nr  = rcv1_10k_nr;
+      B1_.nc  = rcv1_10k_nc;
+      B1_.nnz = rcv1_10k_nnz;
+      B1_.ia  = rcv1_10k_ia;
+      B1_.ja  = rcv1_10k_ja;
+      B1_.a   = rcv1_10k_a;
+
+      if (int err = EFIKA_Matrix_iidx(&A_, &B2_))
+        throw std::runtime_error("Could not create inverted index B2");
+
+      C1_.nr = rcv1_10k_nr;
+      C1_.nc = rcv1_10k_nc;
+      C1_.ia = static_cast<EFIKA_ind_t*>(malloc((C1_.nr + 1) * sizeof(*C1_.ia)));
+      C1_.ja = static_cast<EFIKA_ind_t*>(malloc(C1_.nr * C1_.nr * sizeof(*C1_.ja)));
+      C1_.a  = static_cast<EFIKA_val_t*>(malloc(C1_.nr * C1_.nr * sizeof(*C1_.a)));
+
+      if (!(C1_.ia && C1_.ja && C1_.a))
+        throw std::runtime_error("Could not allocate solution matrix C1");
+
+      C2_.nr = rcv1_10k_nr;
+      C2_.nc = rcv1_10k_nc;
+      C2_.ia = static_cast<EFIKA_ind_t*>(malloc((C2_.nr + 1) * sizeof(*C2_.ia)));
+      C2_.ja = static_cast<EFIKA_ind_t*>(malloc(C2_.nr * C2_.nr * sizeof(*C2_.ja)));
+      C2_.a  = static_cast<EFIKA_val_t*>(malloc(C2_.nr * C2_.nr * sizeof(*C2_.a)));
+
+      if (!(C2_.ia && C2_.ja && C2_.a))
+        throw std::runtime_error("Could not allocate solution matrix C2");
+
+      h_ = static_cast<EFIKA_val_t*>(malloc(std::max(rcv1_10k_nr, rcv1_10k_nc) * sizeof(*h_)));
+
+      if (!h_)
+        throw std::runtime_error("Could not allocate scratch space");
     }
 
     void tearDown() override {
+      EFIKA_Matrix_free(&B2_);
+      EFIKA_Matrix_free(&C1_);
+      EFIKA_Matrix_free(&C2_);
+      free(h_);
     }
 
   protected:
-    EFIKA_ind_t const nr_  { 4 };
-    EFIKA_ind_t const nc_  { 8 };
-    EFIKA_ind_t const nnz_ { 8 };
-    std::array<EFIKA_ind_t, 5> A_ia_ { 0, 1, 2, 5, 8 };
-    std::array<EFIKA_ind_t, 8> A_ja_ { 0, 1, 1, 3, 5, 0, 3, 7 };
-    std::array<EFIKA_val_t, 8> A_a_  { 1, 1, 2, 3, 4, 5, 6, 7 };
-    std::array<EFIKA_ind_t, 5> B1_ia_ { 0, 1, 2, 5, 8 };
-    std::array<EFIKA_ind_t, 8> B1_ja_ { 0, 1, 1, 3, 5, 0, 3, 7 };
-    std::array<EFIKA_val_t, 8> B1_a_  { 1, 1, 2, 3, 4, 5, 6, 7 };
-    std::array<EFIKA_ind_t, 9> B2_ia_ { 0, 2, 4, 4, 6, 6, 7, 7, 8 };
-    std::array<EFIKA_ind_t, 8> B2_ja_ { 0, 3, 1, 2, 2, 3, 2, 3 };
-    std::array<EFIKA_val_t, 8> B2_a_  { 1, 5, 1, 2, 3, 6, 4, 7 };
-    std::array<EFIKA_ind_t, 5>  C1_ia_;
-    std::array<EFIKA_ind_t, 11> C1_ja_;
-    std::array<EFIKA_val_t, 11> C1_a_;
-    std::array<EFIKA_ind_t, 5>  C2_ia_;
-    std::array<EFIKA_ind_t, 11> C2_ja_;
-    std::array<EFIKA_val_t, 11> C2_a_;
-    std::array<EFIKA_val_t, 8> h_;
     EFIKA_Matrix A_;
     EFIKA_Matrix B1_;
     EFIKA_Matrix B2_;
     EFIKA_Matrix C1_;
     EFIKA_Matrix C2_;
+    EFIKA_val_t *h_;
 };
 
 } // namespace
 
-BASELINE_F(SpGEMM, CSR_CSC, SpGEMMFixture, 30, 1000000)
+BASELINE_F(SpGEMM, CSR_CSC, SpGEMMFixture, 3, 1)
 {
-  efika_BLAS_spgemm_csr_csc(this->A_.nr, this->B1_.nr, this->A_.ia, this->A_.ja,
-                            this->A_.a, this->B1_.ia, this->B1_.ja, this->B1_.a,
-                            this->C1_.ia, this->C1_.ja, this->C1_.a,
-                            this->h_.data());
+  efika_BLAS_spgemm_csr_csc(A_.nr, B1_.nr, A_.ia, A_.ja, A_.a, B1_.ia, B1_.ja,
+                            B1_.a, C1_.ia, C1_.ja, C1_.a, h_);
 }
 
-BENCHMARK_F(SpGEMM, CSR_IDX, SpGEMMFixture, 0, 0)
+BENCHMARK_F(SpGEMM, CSR_IDX, SpGEMMFixture, 3, 1)
 {
-  efika_BLAS_spgemm_csr_idx(this->A_.nr, this->A_.ia, this->A_.ja, this->A_.a,
-                            this->B2_.ia, this->B2_.ja, this->B2_.a,
-                            this->C2_.ia, this->C2_.ja, this->C2_.a,
-                            this->h_.data());
+  efika_BLAS_spgemm_csr_idx(A_.nr, A_.ia, A_.ja, A_.a, B2_.ia, B2_.ja, B2_.a,
+                            C2_.ia, C2_.ja, C2_.a, h_);
 }
 
-BENCHMARK_F(SpGEMM, RSB_RSB, SpGEMMFixture, 0, 0)
+BENCHMARK_F(SpGEMM, RSB_RSB, SpGEMMFixture, 3, 1)
 {
   celero::DoNotOptimizeAway(0);
 }

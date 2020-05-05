@@ -160,11 +160,12 @@ rsb_setup_node(
   sa[1] = rsb_bsearch(rsp, kv, nnz);
   sa[0] = rsb_bsearch(csp, kv, sa[1]);
   sa[2] = rsb_bsearch(csp, kv + sa[1], nnz - sa[1]);
+
   /* record interval / leaf status for quadrants */
-  sa[3] = sa[0]         > RSB_MIN_NODE_SIZE
-        | sa[1] - sa[0] > RSB_MIN_NODE_SIZE << 1
-        | sa[2] - sa[1] > RSB_MIN_NODE_SIZE << 2
-        | nnz   - sa[2] > RSB_MIN_NODE_SIZE << 3;
+  sa[3] = (sa[0]         > RSB_MIN_NODE_SIZE)
+        | (sa[1] - sa[0] > RSB_MIN_NODE_SIZE) << 1
+        | (sa[2] - sa[1] > RSB_MIN_NODE_SIZE) << 2
+        | (nnz   - sa[2] > RSB_MIN_NODE_SIZE) << 3;
 
   /* compute quadrant dimensions */
   ind_t const nrt = nr / 2;

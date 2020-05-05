@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MIT
 #include <array>
-#include <iostream>
-#include <stdexcept>
 
 #include <gtest/gtest.h>
 
@@ -12,12 +10,6 @@ namespace {
 class Matrix : public ::testing::Test {
   public:
     void SetUp() override {
-      int err;
-
-      err = EFIKA_Matrix_init(&M_);
-      if (err)
-        throw std::runtime_error("Could not initialize matrix");
-
       M_.nr  = nr_;
       M_.nc  = nc_;
       M_.nnz = nnz_;
@@ -46,6 +38,33 @@ class Matrix : public ::testing::Test {
 };
 
 } // namespace
+
+TEST_F(Matrix, IIDX) {
+  EFIKA_Matrix I, B;
+
+  int err = EFIKA_Matrix_init(&I);
+  ASSERT_EQ(0, err);
+  err = EFIKA_Matrix_init(&B);
+  ASSERT_EQ(0, err);
+
+  err = EFIKA_Matrix_iidx(&M_, &I);
+  ASSERT_EQ(0, err);
+  err = EFIKA_Matrix_iidx(&I, &B);
+  ASSERT_EQ(0, err);
+
+  ASSERT_EQ(this->M_.nr, B.nr);
+  ASSERT_EQ(this->M_.nc, B.nc);
+  ASSERT_EQ(this->M_.nnz, B.nnz);
+  for (EFIKA_ind_t i = 0; i <= this->M_.nr; i++)
+    ASSERT_EQ(this->M_.ia[i], B.ia[i]) << "i = " << i;
+  for (EFIKA_ind_t i = 0; i < this->M_.nnz; i++)
+    ASSERT_EQ(this->M_.ja[i], B.ja[i]) << "i = " << i;
+  for (EFIKA_ind_t i = 0; i < this->M_.nnz; i++)
+    ASSERT_EQ(this->M_.a[i], B.a[i]) << "i = " << i;
+
+  EFIKA_Matrix_free(&I);
+  EFIKA_Matrix_free(&B);
+}
 
 TEST_F(Matrix, toRSB) {
   EFIKA_Matrix Z;

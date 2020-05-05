@@ -20,3 +20,15 @@ target_sources(${PROJECT_NAME}-benchmarks
 
 target_link_libraries(${PROJECT_NAME}-benchmarks
   PRIVATE celero ${PROJECT_NAME} EfikaSDK::core)
+
+#-------------------------------------------------------------------------------
+# Declare efika dependencies
+#-------------------------------------------------------------------------------
+foreach(dep data)
+  FetchContent_Declare(efika-${dep}
+    GIT_REPOSITORY git@github.com:jiverson002/efika-${dep}.git)
+
+  FetchContent_MakeAvailable(efika-${dep})
+
+  target_link_libraries(${PROJECT_NAME}-benchmarks PRIVATE Efika::${dep})
+endforeach()
