@@ -53,7 +53,7 @@ TEST_F(Matrix, toRSB) {
   int err = EFIKA_Matrix_init(&Z);
   ASSERT_EQ(0, err);
 
-  err = EFIKA_Matrix_zord(&this->M_, &Z);
+  err = EFIKA_Matrix_rsb(&this->M_, &Z);
   ASSERT_EQ(0, err);
 
   for (int i = 0; i < this->m_a_.size(); i++) {

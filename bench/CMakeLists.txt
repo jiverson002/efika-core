@@ -19,4 +19,4 @@ target_sources(${PROJECT_NAME}-benchmarks
   PRIVATE main.cc spgemm.cc)
 
 target_link_libraries(${PROJECT_NAME}-benchmarks
-  PRIVATE celero)
+  PRIVATE celero ${PROJECT_NAME} EfikaSDK::core)

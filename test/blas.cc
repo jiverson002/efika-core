@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MIT
 #include <array>
-#include <iostream>
-#include <stdexcept>
 
 #include <gtest/gtest.h>
 
@@ -94,5 +92,5 @@ TEST_F(BLAS, SpGEMM) {
   ASSERT_EQ(this->C1_.nc, this->C2_.nc);
   ASSERT_EQ(this->C1_.nnz, this->C2_.nnz);
   for (EFIKA_ind_t i = 0; i <= this->C1_.nr; i++)
-    ASSERT_EQ(this->C1_.ia[i], this->C2_.ia[i]) << "i = " << i;
+    ASSERT_EQ(this->C1_.ia[i], this->C2_.ia[i]);
 }

@@ -12,10 +12,12 @@ Matrix_free(Matrix * const M)
 {
   free(M->ia);
   free(M->ja);
-  free(M->za);
   free(M->a);
   free(M->vsiz);
   free(M->vwgt);
+
+  free(M->sa);
+  free(M->za);
 
   if (M->pp) {
     M->pp_free(M->pp);

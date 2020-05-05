@@ -8,7 +8,7 @@ include(GoogleTest)
 add_executable(${PROJECT_NAME}-tests)
 
 target_sources(${PROJECT_NAME}-tests
-  PRIVATE test_blas.cc test_matrix.cc)
+  PRIVATE blas.cc matrix.cc)
 
 target_link_libraries(${PROJECT_NAME}-tests
   PRIVATE gtest gtest_main ${PROJECT_NAME} EfikaSDK::core)
