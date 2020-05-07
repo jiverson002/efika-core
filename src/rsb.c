@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: MIT */
 #include <limits.h>
-#include <stdbool.h>
 #include <stdlib.h>
 
 #include "efika/core.h"

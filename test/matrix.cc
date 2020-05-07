@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include <algorithm>
 #include <array>
+#include <cstdlib>
 #include <functional>
 
 #include <gtest/gtest.h>
@@ -19,15 +20,32 @@ class Matrix : public ::testing::Test {
       A_.nr  = rcv1_10k_nr;
       A_.nc  = rcv1_10k_nc;
       A_.nnz = rcv1_10k_nnz;
-      A_.ia  = rcv1_10k_ia;
-      A_.ja  = rcv1_10k_ja;
-      A_.a   = rcv1_10k_a;
+      A_.ia = static_cast<EFIKA_ind_t*>(std::malloc((A_.nr + 1) * sizeof(EFIKA_ind_t)));
+      A_.ja = static_cast<EFIKA_ind_t*>(std::malloc(A_.nnz * sizeof(EFIKA_ind_t)));
+      A_.a  = static_cast<EFIKA_val_t*>(std::malloc(A_.nnz * sizeof(EFIKA_val_t)));
 
+      if (!(A_.ia && A_.ja && A_.a))
+        throw std::runtime_error("Could not allocate memory for matrix A");
+
+      std::copy(rcv1_10k_ia, rcv1_10k_ia + rcv1_10k_nr + 1, A_.ia);
+      std::copy(rcv1_10k_ja, rcv1_10k_ja + rcv1_10k_nnz, A_.ja);
+      std::copy(rcv1_10k_a, rcv1_10k_a + rcv1_10k_nnz, A_.a);
+
+      /* reorder columns in decreasing order of degree */
+      if (int err = EFIKA_Matrix_cord(&A_, EFIKA_DEG | EFIKA_DSC))
+        throw std::runtime_error("Could not reorder columns of matrix A");
+
+      /* reorder rows in decreasing order of row maximum */
+      if (int err = EFIKA_Matrix_rord(&A_, EFIKA_VAL | EFIKA_DSC))
+        throw std::runtime_error("Could not reorder rows of matrix A");
+
+      /* reorder each row in increasing order of column id */
       if (int err = EFIKA_Matrix_sort(&A_, EFIKA_COL | EFIKA_ASC))
         throw std::runtime_error("Could not sort rows of matrix A");
     }
 
     void TearDown() override {
+      EFIKA_Matrix_free(&A_);
     }
 
   protected:
