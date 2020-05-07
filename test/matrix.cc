@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include <algorithm>
 #include <array>
-#include <iostream>
+#include <functional>
 
 #include <gtest/gtest.h>
 

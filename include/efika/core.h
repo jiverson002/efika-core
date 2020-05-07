@@ -31,17 +31,41 @@ EFIKA_EXPORT extern int EFIKA_debug;
 EFIKA_EXPORT extern int EFIKA_verbose;
 
 /*----------------------------------------------------------------------------*/
+/*! Various flags. */
+/*----------------------------------------------------------------------------*/
+enum EFIKA_flag {
+  EFIKA_NONE = 0x0,
+
+  EFIKA_ASC  = 0x1,
+  EFIKA_DSC  = 0x10,
+
+  EFIKA_BFT  = 0x100,
+  EFIKA_COL  = 0x1000,
+  EFIKA_DEG  = 0x10000,
+  EFIKA_PFX  = 0x100000,
+  EFIKA_VAL  = 0x1000000,
+};
+
+enum EFIKA_mord {
+  EFIKA_MORD_CSR = 0x00,
+  EFIKA_MORD_CSC = 0x01,
+  EFIKA_MORD_RSB = 0x10,
+  EFIKA_MORD_COO = 0x11,
+};
+
+/*----------------------------------------------------------------------------*/
 /*! Sparse matrix data structure */
 /*----------------------------------------------------------------------------*/
 typedef struct EFIKA_Matrix {
-  int fmt;         /*!< metis format specifier [000] */
-  int sort;        /*!< [0] - rows unsorted, 1 - rows sorted asc, 2 - rows
-                        sorted dsc */
-  int symm;        /*!< [0] - non-symmetric, 1 - symmetric */
+  int fmt;  /*!< metis format specifier [000] */
+  int sort; /*!< [0] - rows unsorted, 1 - rows sorted asc, 2 - rows
+                 sorted dsc */
+  int symm; /*!< [0] - non-symmetric, 1 - symmetric */
+  int mord; /*!< [0] - CSR, 1 - CSC, 2 - RSB, 3 - COO */
 
-  EFIKA_ind_t nr;   /*!< number of rows */
-  EFIKA_ind_t nc;   /*!< number of columns */
-  EFIKA_ind_t nnz;  /*!< number of non-zeros */
+  EFIKA_ind_t nr;  /*!< number of rows */
+  EFIKA_ind_t nc;  /*!< number of columns */
+  EFIKA_ind_t nnz; /*!< number of non-zeros */
   EFIKA_ind_t * restrict ia; /*!< sparse matrix row index array */
   EFIKA_ind_t * restrict ja; /*!< sparse matrix column index array */
   EFIKA_val_t * restrict a;  /*!< sparse matrix non-zero entries */
@@ -59,21 +83,6 @@ typedef struct EFIKA_Matrix {
   void * pp;              /*!< pointer to preprocessed data */
   void (*pp_free)(void*); /*!< pointer to function to free preprocessed data */
 } EFIKA_Matrix;
-
-/*----------------------------------------------------------------------------*/
-/*! Various flags. */
-/*----------------------------------------------------------------------------*/
-enum EFIKA_Flag {
-  EFIKA_NONE = 0x0,
-  EFIKA_ASC  = 0x1,
-  EFIKA_DSC  = 0x10,
-
-  EFIKA_BFT  = 0x100,
-  EFIKA_COL  = 0x1000,
-  EFIKA_DEG  = 0x10000,
-  EFIKA_PFX  = 0x100000,
-  EFIKA_VAL  = 0x1000000,
-};
 
 /*----------------------------------------------------------------------------*/
 /*! Public API. */
