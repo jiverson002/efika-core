@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
+#include <algorithm>
 #include <array>
-#include <cstdlib>
+#include <iostream>
 
 #include <gtest/gtest.h>
 
@@ -71,48 +72,64 @@ TEST_F(Matrix, toRSB) {
   err = EFIKA_Matrix_rsb(&A_, &Z);
   ASSERT_EQ(0, err);
 
-  auto check_leaf = [](
-    EFIKA_ind_t const ro,
-    EFIKA_ind_t const co,
-    EFIKA_ind_t const nr,
-    EFIKA_ind_t const nc,
-    EFIKA_ind_t const nnz,
-    EFIKA_ind_t const * const za,
-    EFIKA_val_t const * const a
+  auto check_leaf = [this](
+    const EFIKA_ind_t ro,
+    const EFIKA_ind_t co,
+    const EFIKA_ind_t nr,
+    const EFIKA_ind_t nc,
+    const EFIKA_ind_t nnz,
+    const EFIKA_ind_t * const za,
+    const EFIKA_val_t * const a
   ) -> bool {
-    // TODO: do a more thorough check of the actual non-zero values, searching
-    //       the rows of A_ to make sure that non-zero values found in Z are
-    //       correct according to A_.
-
-    std::size_t const half = sizeof(EFIKA_ind_t) * CHAR_BIT / 2;
-    EFIKA_ind_t const mask = ((EFIKA_ind_t)-1) >> half;
     for (EFIKA_ind_t k = 0; k < nnz; k++) {
-      if ((za[k] >> half) >= nr) return false;
-      if ((za[k] &  mask) >= nc) return false;
+      const auto h = sizeof(EFIKA_ind_t) * CHAR_BIT / 2;
+      const auto m = ((EFIKA_ind_t)-1) >> h;
+      const auto r = (za[k] >> h);
+      const auto c = (za[k] &  m);
+
+      if (r >= nr) return false;
+      if (c >= nc) return false;
+
+      /* compensate for compressed leaf indexing */
+      const auto gr = ro + r;
+      const auto gc = co + c;
+
+      /* find the global column in the original matrix row */
+      const auto p = std::find(A_.ja + A_.ia[gr], A_.ja + A_.ia[gr + 1], gc);
+
+      /* make sure that it was found */
+      if (*p != gc) return false;
+
+      /* find the index in the original ja array for the column */
+      const auto i = A_.ia[gr] + (p - (A_.ja + A_.ia[gr]));
+
+      /* make sure the non-zero value was stored correctly */
+      if (a[k] != A_.a[i]) return false;
     }
+
     return true;
   };
 
   std::function<bool(
-    EFIKA_ind_t const ro,
-    EFIKA_ind_t const co,
-    EFIKA_ind_t const nr,
-    EFIKA_ind_t const nc,
-    EFIKA_ind_t const nnz,
-    EFIKA_ind_t const * const sa,
-    EFIKA_ind_t const * const za,
-    EFIKA_val_t const * const a
+    const EFIKA_ind_t ro,
+    const EFIKA_ind_t co,
+    const EFIKA_ind_t nr,
+    const EFIKA_ind_t nc,
+    const EFIKA_ind_t nnz,
+    const EFIKA_ind_t * const sa,
+    const EFIKA_ind_t * const za,
+    const EFIKA_val_t * const a
   )> check_node;
 
-  check_node = [&](
-    EFIKA_ind_t const ro,
-    EFIKA_ind_t const co,
-    EFIKA_ind_t const nr,
-    EFIKA_ind_t const nc,
-    EFIKA_ind_t const nnz,
-    EFIKA_ind_t const * const sa,
-    EFIKA_ind_t const * const za,
-    EFIKA_val_t const * const a
+  check_node = [&check_node, &check_leaf](
+    const EFIKA_ind_t ro,
+    const EFIKA_ind_t co,
+    const EFIKA_ind_t nr,
+    const EFIKA_ind_t nc,
+    const EFIKA_ind_t nnz,
+    const EFIKA_ind_t * const sa,
+    const EFIKA_ind_t * const za,
+    const EFIKA_val_t * const a
   ) -> bool {
     #define RSB_MIN_NODE_SIZE 1024
 
