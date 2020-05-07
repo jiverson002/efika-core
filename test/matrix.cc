@@ -4,37 +4,32 @@
 #include <gtest/gtest.h>
 
 #include "efika/core.h"
+#include "efika/data/rcv1_10k.h"
 
 namespace {
 
 class Matrix : public ::testing::Test {
   public:
     void SetUp() override {
-      M_.nr  = nr_;
-      M_.nc  = nc_;
-      M_.nnz = nnz_;
-      M_.ia = m_ia_.data();
-      M_.ja = m_ja_.data();
-      M_.a  = m_a_.data();
+      if (int err = EFIKA_Matrix_init(&A_))
+        throw std::runtime_error("Could not initialize matrix A");
+
+      A_.nr  = rcv1_10k_nr;
+      A_.nc  = rcv1_10k_nc;
+      A_.nnz = rcv1_10k_nnz;
+      A_.ia  = rcv1_10k_ia;
+      A_.ja  = rcv1_10k_ja;
+      A_.a   = rcv1_10k_a;
+
+      if (int err = EFIKA_Matrix_sort(&A_, EFIKA_COL | EFIKA_ASC))
+        throw std::runtime_error("Could not sort rows of matrix A");
     }
 
     void TearDown() override {
     }
 
   protected:
-    EFIKA_ind_t const nr_  { 4 };
-    EFIKA_ind_t const nc_  { 8 };
-    EFIKA_ind_t const nnz_ { 8 };
-    std::array<EFIKA_ind_t, 5> m_ia_ { 0, 1, 2, 5, 8 };
-    std::array<EFIKA_ind_t, 8> m_ja_ { 0, 1, 1, 3, 5, 0, 3, 7 };
-    std::array<EFIKA_val_t, 8> m_a_  { 0, 1, 2, 3, 4, 5, 6, 7 };
-    std::array<EFIKA_ind_t, 8> z_za_ {
-      0x00000000 /* r0c0 */, 0x00010001 /* r1c1 */, 0x00020001 /* r2c1 */,
-      0x00030000 /* r3c0 */, 0x00020003 /* r2c3 */, 0x00030003 /* r3c3 */,
-      0x00020005 /* r2c5 */, 0x00030007 /* r3c7 */
-    };
-    std::array<EFIKA_val_t, 8> z_a_  { 0, 1, 2, 5, 3, 6, 4, 7 };
-    EFIKA_Matrix M_;
+    EFIKA_Matrix A_;
 };
 
 } // namespace
@@ -47,20 +42,20 @@ TEST_F(Matrix, IIDX) {
   err = EFIKA_Matrix_init(&B);
   ASSERT_EQ(0, err);
 
-  err = EFIKA_Matrix_iidx(&M_, &I);
+  err = EFIKA_Matrix_iidx(&A_, &I);
   ASSERT_EQ(0, err);
   err = EFIKA_Matrix_iidx(&I, &B);
   ASSERT_EQ(0, err);
 
-  ASSERT_EQ(this->M_.nr, B.nr);
-  ASSERT_EQ(this->M_.nc, B.nc);
-  ASSERT_EQ(this->M_.nnz, B.nnz);
-  for (EFIKA_ind_t i = 0; i <= this->M_.nr; i++)
-    ASSERT_EQ(this->M_.ia[i], B.ia[i]) << "i = " << i;
-  for (EFIKA_ind_t i = 0; i < this->M_.nnz; i++)
-    ASSERT_EQ(this->M_.ja[i], B.ja[i]) << "i = " << i;
-  for (EFIKA_ind_t i = 0; i < this->M_.nnz; i++)
-    ASSERT_EQ(this->M_.a[i], B.a[i]) << "i = " << i;
+  ASSERT_EQ(A_.nr, B.nr);
+  ASSERT_EQ(A_.nc, B.nc);
+  ASSERT_EQ(A_.nnz, B.nnz);
+  for (EFIKA_ind_t i = 0; i <= A_.nr; i++)
+    ASSERT_EQ(A_.ia[i], B.ia[i]) << "i = " << i;
+  for (EFIKA_ind_t i = 0; i < A_.nnz; i++)
+    ASSERT_EQ(A_.ja[i], B.ja[i]) << "i = " << i;
+  for (EFIKA_ind_t i = 0; i < A_.nnz; i++)
+    ASSERT_EQ(A_.a[i], B.a[i]) << "i = " << i;
 
   EFIKA_Matrix_free(&I);
   EFIKA_Matrix_free(&B);
@@ -72,13 +67,8 @@ TEST_F(Matrix, toRSB) {
   int err = EFIKA_Matrix_init(&Z);
   ASSERT_EQ(0, err);
 
-  err = EFIKA_Matrix_rsb(&this->M_, &Z);
+  err = EFIKA_Matrix_rsb(&A_, &Z);
   ASSERT_EQ(0, err);
-
-  for (int i = 0; i < this->m_a_.size(); i++) {
-    ASSERT_EQ(this->z_za_[i],  Z.za[i]) << "i = " << i;
-    ASSERT_EQ(this->z_a_[i],  Z.a[i]) << "i = " << i;
-  }
 
   EFIKA_Matrix_free(&Z);
 }

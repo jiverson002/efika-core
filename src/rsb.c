@@ -1,6 +1,10 @@
 /* SPDX-License-Identifier: MIT */
 #include <limits.h>
+#include <stdbool.h>
 #include <stdlib.h>
+
+#include <assert.h>
+#include <stdio.h>
 
 #include "efika/core.h"
 
@@ -14,14 +18,9 @@
 /*----------------------------------------------------------------------------*/
 /* helper struct for sorting */
 /*----------------------------------------------------------------------------*/
-struct coord {
+struct zindex {
   ind_t r; /*!< row id */
   ind_t c; /*!< column id */
-};
-
-struct zindex {
-  ind_t u; /*!< upper half of number */
-  ind_t l; /*!< lower half of number */
 };
 
 struct kv {
@@ -30,92 +29,64 @@ struct kv {
 };
 
 /*----------------------------------------------------------------------------*/
-/* helper functions to handle a z-indices */
+/* helper functions for qsort */
 /*----------------------------------------------------------------------------*/
-static inline ind_t
-to_zindex_half(ind_t const r, ind_t const c)
+static inline bool less_msb(ind_t const x, ind_t const y)
 {
-  ind_t const one = 1;
-  ind_t z = 0;
-
-  for (size_t i = 0; i < sizeof(ind_t) * CHAR_BIT / 2; i++)
-    z |= (r & one << i) << (i + 1) | (c & one << i) << i;
-
-  return z;
+  return x < y && x < (x ^ y);
 }
 
-static inline struct coord
-from_zindex_half(ind_t const z)
-{
-  ind_t const one = 1;
-  struct coord rc = { 0, 0 };
-
-  for (size_t i = 0; i < sizeof(ind_t) * CHAR_BIT / 2; i++) {
-    rc.r |= (z & one << i << (i + 1)) >> (i + 1);
-    rc.c |= (z & one << i << (i + 0)) >> (i + 0);
-  }
-
-  return rc;
-}
-
-static inline struct zindex
-to_zindex(ind_t const r, ind_t const c)
-{
-  size_t const half = sizeof(ind_t) * CHAR_BIT / 2;
-  struct zindex z = { 0, 0 };
-
-  z.l = to_zindex_half(r, c);
-  z.u = to_zindex_half(r >> half, c >> half);
-
-  return z;
-}
-
-static inline ind_t
-from_zindex(ind_t const ro, ind_t const co, struct zindex const z)
-{
-  size_t const half = sizeof(ind_t) * CHAR_BIT / 2;
-  struct coord res;
-  struct coord rc = { 0, 0 };
-
-  res = from_zindex_half(z.l);
-  rc.r |= res.r;
-  rc.c |= res.c;
-  res = from_zindex_half(z.u);
-  rc.r |= res.r << half;
-  rc.c |= res.c << half;
-
-  return (rc.r - ro) << half | (rc.c - co);
-}
-
-/*----------------------------------------------------------------------------*/
-/* helper function for qsort */
-/*----------------------------------------------------------------------------*/
 static int
 kv_cmp(void const * const ap, void const * const bp)
 {
   struct kv const * const a = (struct kv const*)ap;
   struct kv const * const b = (struct kv const*)bp;
 
-  return a->k.u < b->k.u ? -1 : a->k.u > b->k.u ? 1 : a->k.l < b->k.l ? -1 : 1;
+  if (less_msb(a->k.r ^ b->k.r, a->k.c ^ b->k.c))
+    return a->k.c < b->k.c ? -1 : 1;
+  else
+    return a->k.r < b->k.r ? -1 : 1;
 }
 
 /*----------------------------------------------------------------------------*/
 /*! */
 /*----------------------------------------------------------------------------*/
-static ind_t
-rsb_bsearch(ind_t const k, struct kv const * const restrict a, ind_t const n)
+static inline ind_t
+rsb_block_zindex(ind_t const ro, ind_t const co, struct zindex const z)
 {
-  return 0;
+  size_t const half = sizeof(ind_t) * CHAR_BIT / 2;
+  return (z.r - ro) << half | (z.c - co);
+}
 
-  (void)k;
-  (void)a;
-  (void)n;
+/*----------------------------------------------------------------------------*/
+/*! Compute the smallest index of an element that is greater than or equal to a
+ *  given value. */
+/*----------------------------------------------------------------------------*/
+static inline ind_t
+rsb_bsearch(
+  int       const row,
+  ind_t     const k,
+  struct kv const * const restrict a,
+  ind_t     const n
+)
+{
+  ind_t l = 0, r = n;
+
+  while (l < r) {
+    ind_t const m = l + (r - l) / 2;
+    if ((row ? a[m].k.r : a[m].k.c) < k)
+      l = m + 1;
+    else
+      r = m;
+  }
+
+  return l;
 }
 
 /*----------------------------------------------------------------------------*/
 /*! */
 /*----------------------------------------------------------------------------*/
-static void
+static inline void
 rsb_setup_leaf(
   ind_t     const ro,
   ind_t     const co,
@@ -126,7 +97,7 @@ rsb_setup_leaf(
 )
 {
   for (ind_t k = 0; k < nnz; k++) {
-    za[k] = from_zindex(ro, co, kv[k].k);
+    za[k] = rsb_block_zindex(ro, co, kv[k].k);
     if (a)
       a[k] = kv[k].v;
   }
@@ -157,9 +128,27 @@ rsb_setup_node(
   ind_t const csp = co + nc / 2;
 
   /* binary search for quadrant splits */
-  sa[1] = rsb_bsearch(rsp, kv, nnz);
-  sa[0] = rsb_bsearch(csp, kv, sa[1]);
-  sa[2] = rsb_bsearch(csp, kv + sa[1], nnz - sa[1]);
+  sa[1] = rsb_bsearch(1, rsp, kv, nnz);
+  sa[0] = rsb_bsearch(0, csp, kv, sa[1]);
+  sa[2] = sa[1] + rsb_bsearch(0, csp, kv + sa[1], nnz - sa[1]);
+
+  /* sanity check */
+  for (ind_t i = 0; i < sa[0]; i++) {
+    assert(kv[i].k.r <  rsp);
+    assert(kv[i].k.c <  csp);
+  }
+  for (ind_t i = sa[0]; i < sa[1]; i++) {
+    assert(kv[i].k.r <  rsp);
+    assert(kv[i].k.c >= csp);
+  }
+  for (ind_t i = sa[1]; i < sa[2]; i++) {
+    assert(kv[i].k.r >= rsp);
+    assert(kv[i].k.c <  csp);
+  }
+  for (ind_t i = sa[2]; i < nnz; i++) {
+    assert(kv[i].k.r >= rsp);
+    assert(kv[i].k.c >= csp);
+  }
 
   /* record interval / leaf status for quadrants */
   sa[3] = (sa[0]         > RSB_MIN_NODE_SIZE)
@@ -218,11 +207,12 @@ Matrix_rsb(Matrix const * const M, Matrix * const Z)
   /* allocate temporary storage */
   struct kv * const kv = GC_malloc(nnz * sizeof(*kv));
 
-  /* compute z-indices of each non-zero */
+  /* populate key-value of each non-zero */
   for (ind_t i = 0, k = 0; i < nr; i++) {
     for (ind_t j = m_ia[i]; j < m_ia[i + 1]; j++, k++) {
-      kv[k].k = to_zindex(i, m_ja[j]);
-      kv[k].v = m_a[j];
+      kv[k].k.r = i;
+      kv[k].k.c = m_ja[j];
+      kv[k].v   = m_a[j];
     }
   }
 
@@ -236,8 +226,11 @@ Matrix_rsb(Matrix const * const M, Matrix * const Z)
   if (m_a)
     z_a = GC_malloc(nnz * sizeof(*z_a));
 
+  // XXX: Dimensions need to be powers of two for proper binary searches
   /* setup book-keeping */
-  ind_t const nsa = rsb_setup_node(0, 0, nr, nc, nnz, kv, z_sa, z_za, z_a);
+  //ind_t const nsa = rsb_setup_node(0, 0, nr, nc, nnz, kv, z_sa, z_za, z_a);
+  ind_t const nsa = rsb_setup_node(0, 0, 65536, 65536, nnz, kv, z_sa, z_za, z_a);
+  (void)nc;
 
   /* record values in /Z/ */
   Z->nr  = nr;
