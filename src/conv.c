@@ -4,6 +4,7 @@
 
 #include "efika/core.h"
 
+#include "efika/core/blas.h"
 #include "efika/core/export.h"
 #include "efika/core/gc.h"
 #include "efika/core/pp.h"
@@ -42,6 +43,24 @@ kv_cmp(void const * const ap, void const * const bp)
 }
 
 /*----------------------------------------------------------------------------*/
+/*! http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2 */
+/*----------------------------------------------------------------------------*/
+static ind_t
+next_pow2(ind_t v)
+{
+  v--;
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+#ifdef EFIKA_WITH_LONG
+  v |= v >> 32;
+#endif
+  return v + 1;
+}
+
+/*----------------------------------------------------------------------------*/
 /*! */
 /*----------------------------------------------------------------------------*/
 static inline ind_t
@@ -56,7 +75,7 @@ rsb_leaf_zindex(ind_t const ro, ind_t const co, struct coord const c)
  *  given value. */
 /*----------------------------------------------------------------------------*/
 static inline ind_t
-rsb_node_bsearch(
+rsb_bsearch(
   int       const row,
   ind_t     const k,
   struct kv const * const restrict a,
@@ -121,9 +140,9 @@ rsb_node_setup(
   ind_t const csp = co + nc / 2;
 
   /* binary search for quadrant splits */
-  sa[1] = rsb_node_bsearch(1, rsp, kv, nnz);
-  sa[0] = rsb_node_bsearch(0, csp, kv, sa[1]);
-  sa[2] = sa[1] + rsb_node_bsearch(0, csp, kv + sa[1], nnz - sa[1]);
+  sa[1] = rsb_bsearch(1, rsp, kv, nnz);
+  sa[0] = rsb_bsearch(0, csp, kv, sa[1]);
+  sa[2] = sa[1] + rsb_bsearch(0, csp, kv + sa[1], nnz - sa[1]);
 
   /* compute quadrant dimensions */
   ind_t const nrt = nr / 2;
@@ -154,66 +173,148 @@ rsb_node_setup(
 }
 
 /*----------------------------------------------------------------------------*/
-/*! Function to re-order rows of a matrix. */
+/*! */
 /*----------------------------------------------------------------------------*/
-EFIKA_CORE_EXPORT int
-Matrix_rsb(Matrix const * const M, Matrix * const Z)
+static int
+csrcsc(Matrix const * const A, Matrix * const B)
 {
   /* ...garbage collected function... */
   GC_func_init();
 
-  if (!pp_all(M, Z))
+  /* unpack /A/ */
+  ind_t const a_nr  = A->nr;
+  ind_t const a_nc  = A->nc;
+  ind_t const a_nnz = A->nnz;
+  ind_t const * const a_ia = A->ia;
+  ind_t const * const a_ja = A->ja;
+  val_t const * const a_a  = A->a;
+
+  if (!pp_all(a_ia, a_ja))
     return -1;
 
-  /* unpack /M/ */
-  ind_t const nr  = M->nr;
-  ind_t const nc  = M->nc;
-  ind_t const nnz = M->nnz;
-  ind_t const * const m_ia = M->ia;
-  ind_t const * const m_ja = M->ja;
-  val_t const * const m_a  = M->a;
+  /* allocate memory for inverted index */
+  ind_t * const b_ia = GC_malloc((a_nc + 1) * sizeof(*b_ia));
+  ind_t * const b_ja = GC_malloc(a_nnz * sizeof(*b_ja));
+  val_t * const b_a  = GC_malloc(a_nnz * sizeof(*b_a));
 
-  if (!pp_all(m_ia, m_ja))
+  BLAS_csrcsc(a_nr, a_nc, a_ia, a_ja, a_a, b_ia, b_ja, b_a);
+
+  /* record relevant info in /B/ */
+  B->mord = MORD_CSC;
+  B->sort = NONE;
+  B->nr   = a_nc;
+  B->nc   = a_nr;
+  B->nnz  = a_nnz;
+  B->ia   = b_ia;
+  B->ja   = b_ja;
+  B->a    = b_a;
+
+  return 0;
+}
+
+/*----------------------------------------------------------------------------*/
+/*! */
+/*----------------------------------------------------------------------------*/
+static int
+csccsr(Matrix const * const A, Matrix * const B)
+{
+  return csrcsc(A, B);
+}
+
+/*----------------------------------------------------------------------------*/
+/*! */
+/*----------------------------------------------------------------------------*/
+static int
+csrrsb(Matrix const * const A, Matrix * const B)
+{
+  /* ...garbage collected function... */
+  GC_func_init();
+
+  /* unpack /A/ */
+  ind_t const a_nr  = A->nr;
+  ind_t const a_nc  = A->nc;
+  ind_t const a_nnz = A->nnz;
+  ind_t const * const a_ia = A->ia;
+  ind_t const * const a_ja = A->ja;
+  val_t const * const a_a  = A->a;
+
+  if (!pp_all(a_ia, a_ja))
     return -1;
 
   /* allocate temporary storage */
-  struct kv * const kv = GC_malloc(nnz * sizeof(*kv));
+  struct kv * const kv = GC_malloc(a_nnz * sizeof(*kv));
 
   /* populate key-value of each non-zero */
-  for (ind_t i = 0, k = 0; i < nr; i++) {
-    for (ind_t j = m_ia[i]; j < m_ia[i + 1]; j++, k++) {
+  for (ind_t i = 0, k = 0; i < a_nr; i++) {
+    for (ind_t j = a_ia[i]; j < a_ia[i + 1]; j++, k++) {
       kv[k].k.r = i;
-      kv[k].k.c = m_ja[j];
-      kv[k].v   = m_a[j];
+      kv[k].k.c = a_ja[j];
+      if (a_a)
+        kv[k].v = a_a[j];
     }
   }
 
   /* sort non-zeros by z-index */
-  qsort(kv, nnz, sizeof(*kv), kv_cmp);
+  qsort(kv, a_nnz, sizeof(*kv), kv_cmp);
 
   /* allocate new storage */
-  ind_t * const z_sa = GC_malloc(6 * nnz * sizeof(*z_sa));
-  ind_t * const z_za = GC_malloc(nnz * sizeof(*z_za));
-  val_t * z_a = NULL;
-  if (m_a)
-    z_a = GC_malloc(nnz * sizeof(*z_a));
+  ind_t * const b_sa = GC_malloc(6 * a_nnz * sizeof(*b_sa));
+  ind_t * const b_za = GC_malloc(a_nnz * sizeof(*b_za));
+  val_t * b_a = NULL;
+  if (a_a)
+    b_a = GC_malloc(a_nnz * sizeof(*b_a));
 
   // XXX: Dimensions need to be powers of two for proper binary searches
-  /* setup book-keeping */
-  //ind_t const nsa = rsb_node_setup(0, 0, nr, nc, nnz, kv, z_sa, z_za, z_a);
-  ind_t const nsa = rsb_node_setup(0, 0, 65536, 65536, nnz, kv, z_sa, z_za, z_a);
+  ind_t const nr2 = next_pow2(a_nr);
+  ind_t const nc2 = next_pow2(a_nc);
+  ind_t const n   = nr2 > nc2 ? nr2 : nc2;
 
-  /* record values in /Z/ */
-  Z->mord = EFIKA_MORD_RSB;
-  Z->nr   = nr;
-  Z->nc   = nc;
-  Z->nnz  = nnz;
-  Z->sa   = GC_realloc(z_sa, nsa * sizeof(*z_sa));
-  Z->za   = z_za;
-  Z->a    = z_a;
+  /* setup book-keeping */
+  ind_t const nsa = rsb_node_setup(0, 0, n, n, a_nnz, kv, b_sa, b_za, b_a);
+
+  /* record relevant info in /B/ */
+  B->sort = NONE;
+  B->mord = MORD_RSB;
+  B->nr   = a_nr;
+  B->nc   = a_nc;
+  B->nnz  = a_nnz;
+  B->sa   = GC_realloc(b_sa, nsa * sizeof(*b_sa));
+  B->za   = b_za;
+  B->a    = b_a;
 
   /* free temporary storage */
   GC_free(kv);
 
   return 0;
+}
+
+/*----------------------------------------------------------------------------*/
+/*! Function to convert a matrix from one storage format to another. */
+/*----------------------------------------------------------------------------*/
+EFIKA_CORE_EXPORT int
+Matrix_conv(Matrix const * const A, Matrix * const B, int const which)
+{
+  if (!pp_all(A, B))
+    return -1;
+
+  if (A->mord == which)
+    return 0;
+
+#define combine(a, b) ((a) << 8 | (b))
+
+  switch (combine(A->mord, which)) {
+    case combine(MORD_CSR, MORD_CSC):
+    return csrcsc(A, B);
+
+    case combine(MORD_CSC, MORD_CSR):
+    return csccsr(A, B);
+
+    case combine(MORD_CSR, MORD_RSB):
+    return csrrsb(A, B);
+
+    default:
+    return -1;
+  }
+
+#undef combine
 }

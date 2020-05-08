@@ -19,6 +19,7 @@
 /*! Core functions. */
 /*----------------------------------------------------------------------------*/
 #define Matrix_comp EFIKA_Matrix_comp
+#define Matrix_conv EFIKA_Matrix_conv
 #define Matrix_copy EFIKA_Matrix_copy
 #define Matrix_cord EFIKA_Matrix_cord
 #define Matrix_free EFIKA_Matrix_free
@@ -27,7 +28,6 @@
 #define Matrix_norm EFIKA_Matrix_norm
 #define Matrix_perm EFIKA_Matrix_perm
 #define Matrix_rord EFIKA_Matrix_rord
-#define Matrix_rsb  EFIKA_Matrix_rsb
 #define Matrix_sort EFIKA_Matrix_sort
 #define Matrix_test EFIKA_Matrix_test
 
@@ -69,6 +69,11 @@
 #define DEG  EFIKA_DEG
 #define PFX  EFIKA_PFX
 #define VAL  EFIKA_VAL
+
+#define MORD_CSR EFIKA_MORD_CSR
+#define MORD_CSC EFIKA_MORD_CSC
+#define MORD_RSB EFIKA_MORD_RSB
+#define MORD_COO EFIKA_MORD_COO
 
 #define ORDER_FLAGS (ASC|DSC)
 #define TYPE_FLAGS  (BFT|COL|DEG|PFX|VAL)

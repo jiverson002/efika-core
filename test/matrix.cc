@@ -17,6 +17,7 @@ class Matrix : public ::testing::Test {
       if (int err = EFIKA_Matrix_init(&A_))
         throw std::runtime_error("Could not initialize matrix A");
 
+      A_.mord = EFIKA_MORD_CSR;
       A_.nr  = rcv1_10k_nr;
       A_.nc  = rcv1_10k_nc;
       A_.nnz = rcv1_10k_nnz;
@@ -54,7 +55,7 @@ class Matrix : public ::testing::Test {
 
 } // namespace
 
-TEST_F(Matrix, IIDX) {
+TEST_F(Matrix, toCSC) {
   EFIKA_Matrix I, B;
 
   int err = EFIKA_Matrix_init(&I);
@@ -62,9 +63,10 @@ TEST_F(Matrix, IIDX) {
   err = EFIKA_Matrix_init(&B);
   ASSERT_EQ(0, err);
 
-  err = EFIKA_Matrix_iidx(&A_, &I);
+  err = EFIKA_Matrix_conv(&A_, &I, EFIKA_MORD_CSC);
   ASSERT_EQ(0, err);
-  err = EFIKA_Matrix_iidx(&I, &B);
+  std::cout << I.nc << std::endl;
+  err = EFIKA_Matrix_conv(&I, &B, EFIKA_MORD_CSR);
   ASSERT_EQ(0, err);
 
   ASSERT_EQ(A_.nr, B.nr);
@@ -87,7 +89,7 @@ TEST_F(Matrix, toRSB) {
   int err = EFIKA_Matrix_init(&Z);
   ASSERT_EQ(0, err);
 
-  err = EFIKA_Matrix_rsb(&A_, &Z);
+  err = EFIKA_Matrix_conv(&A_, &Z, EFIKA_MORD_RSB);
   ASSERT_EQ(0, err);
 
   auto check_leaf = [this](

@@ -47,10 +47,10 @@ enum EFIKA_flag {
 };
 
 enum EFIKA_mord {
-  EFIKA_MORD_CSR = 0x00,
-  EFIKA_MORD_CSC = 0x01,
-  EFIKA_MORD_RSB = 0x10,
-  EFIKA_MORD_COO = 0x11,
+  EFIKA_MORD_CSR = 0x1,
+  EFIKA_MORD_CSC = 0x10,
+  EFIKA_MORD_RSB = 0x100,
+  EFIKA_MORD_COO = 0x1000,
 };
 
 /*----------------------------------------------------------------------------*/
@@ -91,8 +91,8 @@ typedef struct EFIKA_Matrix {
 extern "C" {
 #endif
 
-<<<<<<< HEAD
 EFIKA_EXPORT int  EFIKA_Matrix_comp(EFIKA_Matrix *);
+EFIKA_EXPORT int  EFIKA_Matrix_conv(EFIKA_Matrix const *, EFIKA_Matrix *, int);
 EFIKA_EXPORT int  EFIKA_Matrix_copy(EFIKA_Matrix const *, EFIKA_Matrix *);
 EFIKA_EXPORT int  EFIKA_Matrix_cord(EFIKA_Matrix *, int);
 EFIKA_EXPORT void EFIKA_Matrix_free(EFIKA_Matrix *);
@@ -103,9 +103,6 @@ EFIKA_EXPORT int  EFIKA_Matrix_perm(EFIKA_Matrix *, EFIKA_ind_t *, EFIKA_ind_t *
 EFIKA_EXPORT int  EFIKA_Matrix_rord(EFIKA_Matrix *, int);
 EFIKA_EXPORT int  EFIKA_Matrix_sort(EFIKA_Matrix *, int);
 EFIKA_EXPORT int  EFIKA_Matrix_test(EFIKA_Matrix const *);
-EFIKA_EXPORT int  EFIKA_Matrix_rord(EFIKA_Matrix *, int);
-EFIKA_EXPORT int  EFIKA_Matrix_rsb(EFIKA_Matrix const *, EFIKA_Matrix *);
-EFIKA_EXPORT int  EFIKA_Matrix_sort(EFIKA_Matrix *, int);
 
 #ifdef __cplusplus
 }
