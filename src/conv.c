@@ -10,8 +10,6 @@
 #include "efika/core/pp.h"
 #include "efika/core/rename.h"
 
-#define RSB_MIN_NODE_SIZE 1024
-
 /*----------------------------------------------------------------------------*/
 /* helper struct for sorting */
 /*----------------------------------------------------------------------------*/
@@ -61,10 +59,12 @@ next_pow2(ind_t v)
 }
 
 /*----------------------------------------------------------------------------*/
-/*! */
+/*! Compress a row and column index into a single ind_t value. The row index
+ *  will occupy the upper half and the column index will occupy the lower half.
+ */
 /*----------------------------------------------------------------------------*/
 static inline ind_t
-rsb_leaf_zindex(ind_t const ro, ind_t const co, struct coord const c)
+RSB_leaf_zindex(ind_t const ro, ind_t const co, struct coord const c)
 {
   size_t const half = sizeof(ind_t) * CHAR_BIT / 2;
   return (c.r - ro) << half | (c.c - co);
@@ -75,11 +75,11 @@ rsb_leaf_zindex(ind_t const ro, ind_t const co, struct coord const c)
  *  given value. */
 /*----------------------------------------------------------------------------*/
 static inline ind_t
-rsb_bsearch(
-  int       const row,
-  ind_t     const k,
+RSB_node_bsearch(
+  int   const row,
+  ind_t const k,
   struct kv const * const restrict a,
-  ind_t     const n
+  ind_t const n
 )
 {
   ind_t l = 0, r = n;
@@ -99,17 +99,17 @@ rsb_bsearch(
 /*! */
 /*----------------------------------------------------------------------------*/
 static inline void
-rsb_leaf_setup(
-  ind_t     const ro,
-  ind_t     const co,
-  ind_t     const nnz,
+RSB_leaf_setup(
+  ind_t const ro,
+  ind_t const co,
+  ind_t const nnz,
   struct kv const * const restrict kv,
   ind_t           * const restrict za,
   val_t           * const restrict a
 )
 {
   for (ind_t k = 0; k < nnz; k++) {
-    za[k] = rsb_leaf_zindex(ro, co, kv[k].k);
+    za[k] = RSB_leaf_zindex(ro, co, kv[k].k);
     if (a)
       a[k] = kv[k].v;
   }
@@ -119,54 +119,46 @@ rsb_leaf_setup(
 /*! */
 /*----------------------------------------------------------------------------*/
 static ind_t
-rsb_node_setup(
-  ind_t     const ro,
-  ind_t     const co,
-  ind_t     const nr,
-  ind_t     const nc,
-  ind_t     const nnz,
+RSB_node_split(
+  ind_t const ro,
+  ind_t const co,
+  ind_t const n,
+  ind_t const nnz,
   struct kv const * const restrict kv,
   ind_t           * const restrict sa,
   ind_t           * const restrict za,
   val_t           * const restrict a
 )
 {
-  /* don't split node if it is too small */
-  if (nnz < RSB_MIN_NODE_SIZE)
-    return rsb_leaf_setup(ro, co, nnz, kv, za, a), 0;
+  /* don't explicitly split node if dimensions are small enough */
+  if (n <= (ind_t)1 << (sizeof(ind_t) * CHAR_BIT / 2))
+    return RSB_leaf_setup(ro, co, nnz, kv, za, a), 0;
+
+  /* compute new dimension */
+  ind_t const nn = n / 2;
 
   /* compute row and column split keys */
-  ind_t const rsp = ro + nr / 2;
-  ind_t const csp = co + nc / 2;
+  ind_t const rsp = ro + nn;
+  ind_t const csp = co + nn;
 
   /* binary search for quadrant splits */
-  sa[1] = rsb_bsearch(1, rsp, kv, nnz);
-  sa[0] = rsb_bsearch(0, csp, kv, sa[1]);
-  sa[2] = sa[1] + rsb_bsearch(0, csp, kv + sa[1], nnz - sa[1]);
-
-  /* compute quadrant dimensions */
-  ind_t const nrt = nr / 2;
-  ind_t const nrb = nr - nrt;
-  ind_t const ncl = nc / 2;
-  ind_t const ncr = nc - ncl;
-
-  /* compute quadrant offsets */
-  ind_t const ob = ro + nrt;
-  ind_t const or = co + ncl;
+  sa[1] = RSB_node_bsearch(1, rsp, kv, nnz);
+  sa[0] = RSB_node_bsearch(0, csp, kv, sa[1]);
+  sa[2] = sa[1] + RSB_node_bsearch(0, csp, kv + sa[1], nnz - sa[1]);
 
   /* */
   ind_t nsa = 6;
 
-  /* recursively setup each quadrant */
-  nsa += rsb_node_setup(ro, co, nrt, ncl, sa[0], kv, sa + nsa, za, a);
+  /* recursively split each quadrant */
+  nsa += RSB_node_split(ro, co, nn, sa[0], kv, sa + nsa, za, a);
   sa[3] = nsa;
-  nsa += rsb_node_setup(ro, or, nrt, ncr, sa[1] - sa[0], kv + sa[0], sa + nsa,
+  nsa += RSB_node_split(ro, co + nn, nn, sa[1] - sa[0], kv + sa[0], sa + nsa,
                         za + sa[0], a ? a + sa[0] : NULL);
   sa[4] = nsa;
-  nsa += rsb_node_setup(ob, co, nrb, ncl, sa[2] - sa[1], kv + sa[1], sa + nsa,
+  nsa += RSB_node_split(ro + nn, co, nn, sa[2] - sa[1], kv + sa[1], sa + nsa,
                         za + sa[1], a ? a + sa[1] : NULL);
   sa[5] = nsa;
-  nsa += rsb_node_setup(ob, or, nrb, ncr, nnz - sa[2], kv + sa[2], sa + nsa,
+  nsa += RSB_node_split(ro + nn, co + nn, nn, nnz - sa[2], kv + sa[2], sa + nsa,
                         za + sa[2], a ? a + sa[2] : NULL);
 
   return nsa;
@@ -264,13 +256,13 @@ csrrsb(Matrix const * const A, Matrix * const B)
   if (a_a)
     b_a = GC_malloc(a_nnz * sizeof(*b_a));
 
-  // XXX: Dimensions need to be powers of two for proper binary searches
+  /* dimensions need to be powers of two for proper binary searches */
   ind_t const nr2 = next_pow2(a_nr);
   ind_t const nc2 = next_pow2(a_nc);
   ind_t const n   = nr2 > nc2 ? nr2 : nc2;
 
   /* setup book-keeping */
-  ind_t const nsa = rsb_node_setup(0, 0, n, n, a_nnz, kv, b_sa, b_za, b_a);
+  ind_t const nsa = RSB_node_split(0, 0, n, a_nnz, kv, b_sa, b_za, b_a);
 
   /* record relevant info in /B/ */
   B->sort = NONE;

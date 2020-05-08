@@ -95,8 +95,7 @@ TEST_F(Matrix, toRSB) {
   auto check_leaf = [this](
     const EFIKA_ind_t ro,
     const EFIKA_ind_t co,
-    const EFIKA_ind_t nr,
-    const EFIKA_ind_t nc,
+    const EFIKA_ind_t n,
     const EFIKA_ind_t nnz,
     const EFIKA_ind_t * const za,
     const EFIKA_val_t * const a
@@ -107,8 +106,8 @@ TEST_F(Matrix, toRSB) {
       const auto r = (za[k] >> h);
       const auto c = (za[k] &  m);
 
-      if (r >= nr) return false;
-      if (c >= nc) return false;
+      if (r >= n) return false;
+      if (c >= n) return false;
 
       /* compensate for compressed leaf indexing */
       const auto gr = ro + r;
@@ -133,8 +132,7 @@ TEST_F(Matrix, toRSB) {
   std::function<bool(
     const EFIKA_ind_t ro,
     const EFIKA_ind_t co,
-    const EFIKA_ind_t nr,
-    const EFIKA_ind_t nc,
+    const EFIKA_ind_t n,
     const EFIKA_ind_t nnz,
     const EFIKA_ind_t * const sa,
     const EFIKA_ind_t * const za,
@@ -144,30 +142,18 @@ TEST_F(Matrix, toRSB) {
   check_node = [&check_node, &check_leaf](
     const EFIKA_ind_t ro,
     const EFIKA_ind_t co,
-    const EFIKA_ind_t nr,
-    const EFIKA_ind_t nc,
+    const EFIKA_ind_t n,
     const EFIKA_ind_t nnz,
     const EFIKA_ind_t * const sa,
     const EFIKA_ind_t * const za,
     const EFIKA_val_t * const a
   ) -> bool {
-    #define RSB_MIN_NODE_SIZE 1024
-
-    /* don't split node if it is too small */
-    if (nnz < RSB_MIN_NODE_SIZE)
-      return check_leaf(ro, co, nr, nc, nnz, za, a);
-
-    /* compute row and column split keys */
-    const auto rsp = ro + nr / 2;
-    const auto csp = co + nc / 2;
+    /* don't explicitly split node if dimensions are small enough */
+    if (n <= (EFIKA_ind_t)1 << sizeof(EFIKA_ind_t) * CHAR_BIT / 2)
+      return check_leaf(ro, co, n, nnz, za, a);
 
     /* compute quadrant dimensions */
-    const auto nnr = nr / 2;
-    const auto nnc = nc / 2;
-
-    /* compute quadrant offsets */
-    const auto bh = ro + nnr;
-    const auto rh = co + nnc;
+    const auto nn = n / 2;
 
     /* compute quadrant # non-zeros */
     const auto nnz0 = sa[0];
@@ -176,17 +162,14 @@ TEST_F(Matrix, toRSB) {
     const auto nnz3 = nnz   - sa[2];
 
     /* recursively check each quadrant */
-    return check_node(ro, co, nnr, nnc, nnz0, sa + 6, za, a)
-      && check_node(ro, rh, nnr, nnc, nnz1, sa + sa[3], za + sa[0], a + sa[0])
-      && check_node(bh, co, nnr, nnc, nnz2, sa + sa[4], za + sa[1], a + sa[1])
-      && check_node(bh, rh, nnr, nnc, nnz3, sa + sa[5], za + sa[2], a + sa[2]);
-
-    #undef RSB_MIN_NODE_SIZE
+    return check_node(ro, co, nn, nnz0, sa + 6, za, a)
+        && check_node(ro, co + nn, nn, nnz1, sa + sa[3], za + sa[0], a + sa[0])
+        && check_node(ro + nn, co, nn, nnz2, sa + sa[4], za + sa[1], a + sa[1])
+        && check_node(ro + nn, co + nn, nn, nnz3, sa + sa[5], za + sa[2], a + sa[2]);
   };
 
   // FIXME: nr and nc must be powers of 2
-  //bool const valid = check_node(0, 0, Z.nr, Z.nc, Z.nnz, Z.sa, Z.za, Z.a);
-  bool const valid = check_node(0, 0, 65536, 65536, Z.nnz, Z.sa, Z.za, Z.a);
+  bool const valid = check_node(0, 0, 65536, Z.nnz, Z.sa, Z.za, Z.a);
 
   ASSERT_TRUE(valid);
 
