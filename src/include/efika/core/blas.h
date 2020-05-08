@@ -43,8 +43,10 @@ void  BLAS_spgemm_csr_csc(ind_t, ind_t, ind_t const *, ind_t const *,
 void  BLAS_spgemm_csr_csr(ind_t, ind_t const *, ind_t const *, val_t const *,
                           ind_t const *, ind_t const *, val_t const *, ind_t *,
                           ind_t *, val_t *, val_t *);
-void  BLAS_spgemm_rsb_rsb(ind_t, ind_t, ind_t const *, val_t const *,
-                          ind_t const *, val_t const *, ind_t *, val_t *);
+void  BLAS_spgemm_rsb_rsb(ind_t, ind_t, ind_t const *, ind_t const *,
+                          val_t const *, ind_t, ind_t const *, ind_t const *,
+                          val_t const *, ind_t *, ind_t *, val_t *);
+
 #ifdef __cplusplus
 }
 #endif

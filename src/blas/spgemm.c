@@ -1,4 +1,8 @@
 /* SPDX-License-Identifier: MIT */
+#include <limits.h>
+#include <stdbool.h>
+#include <stdlib.h>
+
 #include "efika/core/blas.h"
 
 /*----------------------------------------------------------------------------*/
@@ -102,6 +106,203 @@ BLAS_spgemm_csr_csr(
 }
 
 /*----------------------------------------------------------------------------*/
+/*! */
+/*----------------------------------------------------------------------------*/
+static inline bool
+RSB_fits_in_cache(ind_t const a_nnz, ind_t const b_nnz)
+{
+  return true;
+  (void)a_nnz;
+  (void)b_nnz;
+}
+
+/*----------------------------------------------------------------------------*/
+/*! Compute the smallest index of an element that is greater than or equal to a
+ *  given value. */
+/*----------------------------------------------------------------------------*/
+static inline ind_t
+RSB_bsearch(
+  int   const row,
+  ind_t const k,
+  ind_t const * const restrict za,
+  ind_t const n
+)
+{
+  ind_t const half = sizeof(ind_t) * CHAR_BIT / 2;
+  ind_t const mask = ((ind_t)-1) >> half;
+  ind_t l = 0, u = n;
+
+  while (l < u) {
+    ind_t const m = l + (u - l) / 2;
+    ind_t const r = (za[m] >> half);
+    ind_t const c = (za[m] &  mask);
+    if ((row ? r : c) < k)
+      l = m + 1;
+    else
+      u = m;
+  }
+
+  return l;
+}
+
+/*----------------------------------------------------------------------------*/
+/*! */
+/*----------------------------------------------------------------------------*/
+static void
+RSB_spgemm_cache(
+  ind_t const a_ro,
+  ind_t const a_co,
+  ind_t const a_nnz,
+  ind_t const * const restrict a_za,
+  val_t const * const restrict a_a,
+  ind_t const b_ro,
+  ind_t const b_co,
+  ind_t const b_nnz,
+  ind_t const * const restrict b_za,
+  val_t const * const restrict b_a
+)
+{
+  (void)a_ro;
+  (void)a_co;
+  (void)a_nnz;
+  (void)a_za;
+  (void)a_a;
+  (void)b_ro;
+  (void)b_co;
+  (void)b_nnz;
+  (void)b_za;
+  (void)b_a;
+}
+
+/*----------------------------------------------------------------------------*/
+/*! */
+/*----------------------------------------------------------------------------*/
+static void
+RSB_spgemm(
+  ind_t const n,
+  ind_t const a_ro,
+  ind_t const a_co,
+  ind_t const a_nnz,
+  ind_t const * const restrict a_sa,
+  ind_t const * const restrict a_za,
+  val_t const * const restrict a_a,
+  ind_t const b_ro,
+  ind_t const b_co,
+  ind_t const b_nnz,
+  ind_t const * const restrict b_sa,
+  ind_t const * const restrict b_za,
+  val_t const * const restrict b_a
+)
+{
+  /* check if either matrix has no non-zeros */
+  if (0 == a_nnz || 0 == b_nnz)
+    return;
+
+  /* check if multiplication can be done entirely in cache */
+  if (RSB_fits_in_cache(a_nnz, b_nnz)) {
+    RSB_spgemm_cache(a_ro, a_co, a_nnz, a_za, a_a,  /* A * B */
+                     b_ro, b_co, b_nnz, b_za, b_a);
+    return;
+  }
+
+  /* temporary split values */
+  ind_t a_sp[6] = { 0 };
+  ind_t b_sp[6] = { 0 };
+
+  /* compute quadrant dimensions */
+  ind_t const nn = n / 2;
+
+  /* compute quadrant offsets */
+  ind_t const a_rsp = a_ro + nn;
+  ind_t const a_csp = a_co + nn;
+  ind_t const b_rsp = b_ro + nn;
+  ind_t const b_csp = b_co + nn;
+
+  /* determine if splits are stored implicitly or explicitly */
+  if (n <= (ind_t)1 << (sizeof(ind_t) * CHAR_BIT / 2)) {
+    a_sp[1] = RSB_bsearch(1, a_rsp, a_za, a_nnz);
+    a_sp[0] = RSB_bsearch(0, a_csp, a_za, a_sp[1]);
+    a_sp[2] = a_sp[0] + RSB_bsearch(0, a_csp, a_za + a_sp[1], a_nnz - a_sp[1]);
+
+    b_sp[1] = RSB_bsearch(1, b_rsp, b_za, b_nnz);
+    b_sp[0] = RSB_bsearch(0, b_csp, b_za, b_sp[1]);
+    b_sp[2] = b_sp[0] + RSB_bsearch(0, b_csp, b_za + b_sp[1], b_nnz - b_sp[1]);
+  } else {
+    a_sp[0] = a_sa[0]; a_sp[1] = a_sa[1]; a_sp[2] = a_sa[2];
+    a_sp[3] = a_sa[3]; a_sp[4] = a_sa[4]; a_sp[5] = a_sa[5];
+
+    b_sp[0] = b_sa[0]; b_sp[1] = b_sa[1]; b_sp[2] = b_sa[2];
+    b_sp[3] = b_sa[3]; b_sp[4] = b_sa[4]; b_sp[5] = b_sa[5];
+  }
+
+  /* compute /A/ quadrant # non-zeros */
+  ind_t const a11_nnz = a_sp[0];
+  ind_t const a12_nnz = a_sp[1] - a_sp[0];
+  ind_t const a21_nnz = a_sp[2] - a_sp[1];
+  ind_t const a22_nnz = a_nnz   - a_sp[2];
+
+  /* compute /B/ quadrant # non-zeros */
+  ind_t const b11_nnz = b_sp[0];
+  ind_t const b12_nnz = b_sp[1] - b_sp[0];
+  ind_t const b21_nnz = b_sp[2] - b_sp[1];
+  ind_t const b22_nnz = b_nnz   - b_sp[2];
+
+  /* compute /A/ quadrant arrays */
+  ind_t const * const a11_sa = a_sa + 6;
+  ind_t const * const a12_sa = a_sa + a_sp[3];
+  ind_t const * const a21_sa = a_sa + a_sp[4];
+  ind_t const * const a22_sa = a_sa + a_sp[5];
+  ind_t const * const a11_za = a_za;
+  ind_t const * const a12_za = a_za + a_sp[0];
+  ind_t const * const a21_za = a_za + a_sp[1];
+  ind_t const * const a22_za = a_za + a_sp[2];
+  val_t const * const a11_a  = a_a;
+  val_t const * const a12_a  = a_a ? a_a + a_sp[0] : NULL;
+  val_t const * const a21_a  = a_a ? a_a + a_sp[1] : NULL;
+  val_t const * const a22_a  = a_a ? a_a + a_sp[2] : NULL;
+
+  /* compute /B/ quadrant arrays */
+  ind_t const * const b11_sa = b_sa + 6;
+  ind_t const * const b12_sa = b_sa + b_sp[3];
+  ind_t const * const b21_sa = b_sa + b_sp[4];
+  ind_t const * const b22_sa = b_sa + b_sp[5];
+  ind_t const * const b11_za = b_za;
+  ind_t const * const b12_za = b_za + b_sp[0];
+  ind_t const * const b21_za = b_za + b_sp[1];
+  ind_t const * const b22_za = b_za + b_sp[2];
+  val_t const * const b11_a  = b_a;
+  val_t const * const b12_a  = b_a ? b_a + b_sp[0] : NULL;
+  val_t const * const b21_a  = b_a ? b_a + b_sp[1] : NULL;
+  val_t const * const b22_a  = b_a ? b_a + b_sp[2] : NULL;
+
+  /* recursively multiply quadrants */
+  RSB_spgemm(nn,                                            /* A11 * B11 */
+             a_ro,  a_co,  a11_nnz, a11_sa, a11_za, a11_a,
+             b_ro,  b_co,  b11_nnz, b11_sa, b11_za, b11_a);
+  RSB_spgemm(nn,                                            /* A12 * B21 */
+             a_ro,  a_csp, a12_nnz, a12_sa, a12_za, a12_a,
+             b_rsp, b_co,  b21_nnz, b21_sa, b21_za, b21_a);
+  RSB_spgemm(nn,                                            /* A11 * B12 */
+             a_ro,  a_co,  a11_nnz, a11_sa, a11_za, a11_a,
+             b_ro,  b_csp, b12_nnz, b12_sa, b12_za, b12_a);
+  RSB_spgemm(nn,                                            /* A12 * B22 */
+             a_ro,  a_csp, a12_nnz, a12_sa, a12_za, a12_a,
+             b_rsp, b_csp, b22_nnz, b22_sa, b22_za, b22_a);
+  RSB_spgemm(nn,                                            /* A21 * B11 */
+             a_rsp, a_co,  a21_nnz, a21_sa, a21_za, a21_a,
+             b_ro,  b_co,  b11_nnz, b11_sa, b11_za, b11_a);
+  RSB_spgemm(nn,                                            /* A22 * B21 */
+             a_rsp, a_csp, a22_nnz, a22_sa, a22_za, a22_a,
+             b_rsp, b_co,  b21_nnz, b21_sa, b21_za, b21_a);
+  RSB_spgemm(nn,                                            /* A21 * B12 */
+             a_rsp, a_co,  a21_nnz, a21_sa, a21_za, a21_a,
+             b_ro,  b_csp, b12_nnz, b12_sa, b12_za, b12_a);
+  RSB_spgemm(nn,                                            /* A22 * B22 */
+             a_rsp, a_csp, a22_nnz, a22_sa, a22_za, a22_a,
+             b_rsp, b_csp, b22_nnz, b22_sa, b22_za, b22_a);
+}
+
+/*----------------------------------------------------------------------------*/
 /*! Sparse-sparse matrix multiplication B = A * A', where A is stored in RSB
  *  format and A' is not stored explicitly.
  */
@@ -109,21 +310,21 @@ BLAS_spgemm_csr_csr(
 void
 BLAS_spgemm_rsb_rsb(
   ind_t const n,
-  ind_t const nnz,
+  ind_t const annz,
+  ind_t const * const restrict sa,
   ind_t const * const restrict za,
   val_t const * const restrict a,
+  ind_t const bnnz,
+  ind_t const * const restrict sb,
   ind_t const * const restrict zb,
   val_t const * const restrict b,
+  ind_t       * const restrict sc,
   ind_t       * const restrict zc,
   val_t       * const restrict c
 )
 {
-  (void)n;
-  (void)nnz;
-  (void)za;
-  (void)a;
-  (void)zb;
-  (void)b;
+  RSB_spgemm(n, 0, 0, annz, sa, za, a, 0, 0, bnnz, sb, zb, b);
+  (void)sc;
   (void)zc;
   (void)c;
 }
