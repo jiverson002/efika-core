@@ -42,7 +42,7 @@ class SpGEMMFixture : public ::celero::TestFixture {
       B1_.ja  = rcv1_10k_ja;
       B1_.a   = rcv1_10k_a;
 
-      if (int err = EFIKA_Matrix_iidx(&A_, &B2_))
+      if (int err = EFIKA_Matrix_conv(&A_, &B2_, EFIKA_MORD_CSC))
         throw std::runtime_error("Could not create inverted index B2");
 
       C1_.nr = rcv1_10k_nr;
@@ -93,9 +93,9 @@ BASELINE_F(SpGEMM, CSR_CSC, SpGEMMFixture, 3, 1)
                             B1_.a, C1_.ia, C1_.ja, C1_.a, h_);
 }
 
-BENCHMARK_F(SpGEMM, CSR_IDX, SpGEMMFixture, 3, 1)
+BENCHMARK_F(SpGEMM, CSR_CSR, SpGEMMFixture, 3, 1)
 {
-  efika_BLAS_spgemm_csr_idx(A_.nr, A_.ia, A_.ja, A_.a, B2_.ia, B2_.ja, B2_.a,
+  efika_BLAS_spgemm_csr_csr(A_.nr, A_.ia, A_.ja, A_.a, B2_.ia, B2_.ja, B2_.a,
                             C2_.ia, C2_.ja, C2_.a, h_);
 }
 

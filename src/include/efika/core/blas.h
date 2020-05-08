@@ -18,7 +18,8 @@
 #define BLAS_vsctrz efika_BLAS_vsctrz
 
 #define BLAS_spgemm_csr_csc efika_BLAS_spgemm_csr_csc
-#define BLAS_spgemm_csr_idx efika_BLAS_spgemm_csr_idx
+#define BLAS_spgemm_csr_csr efika_BLAS_spgemm_csr_csr
+#define BLAS_spgemm_rsb_rsb efika_BLAS_spgemm_rsb_rsb
 
 /*----------------------------------------------------------------------------*/
 /*! Private API. */
@@ -39,9 +40,11 @@ void  BLAS_vsctrz(ind_t, ind_t const *, val_t *);
 void  BLAS_spgemm_csr_csc(ind_t, ind_t, ind_t const *, ind_t const *,
                           val_t const *, ind_t const *, ind_t const *,
                           val_t const *, ind_t *, ind_t *, val_t *, val_t *);
-void  BLAS_spgemm_csr_idx(ind_t, ind_t const *, ind_t const *, val_t const *,
+void  BLAS_spgemm_csr_csr(ind_t, ind_t const *, ind_t const *, val_t const *,
                           ind_t const *, ind_t const *, val_t const *, ind_t *,
                           ind_t *, val_t *, val_t *);
+void  BLAS_spgemm_rsb_rsb(ind_t, ind_t, ind_t const *, val_t const *,
+                          ind_t const *, val_t const *, ind_t *, val_t *);
 #ifdef __cplusplus
 }
 #endif

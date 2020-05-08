@@ -61,7 +61,7 @@ BLAS_spgemm_csr_csc(
  */
 /*----------------------------------------------------------------------------*/
 void
-BLAS_spgemm_csr_idx(
+BLAS_spgemm_csr_csr(
   ind_t const m,
   ind_t const * const restrict ia,
   ind_t const * const restrict ja,
@@ -108,6 +108,7 @@ BLAS_spgemm_csr_idx(
 /*----------------------------------------------------------------------------*/
 void
 BLAS_spgemm_rsb_rsb(
+  ind_t const n,
   ind_t const nnz,
   ind_t const * const restrict za,
   val_t const * const restrict a,
@@ -117,9 +118,8 @@ BLAS_spgemm_rsb_rsb(
   val_t       * const restrict c
 )
 {
-  for (ind_t i = 0, nnnz = 0; i < nnz; i++) {
-    (void)nnnz;
-  }
+  (void)n;
+  (void)nnz;
   (void)za;
   (void)a;
   (void)zb;

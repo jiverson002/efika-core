@@ -30,22 +30,25 @@ class BLAS : public ::testing::Test {
       if (int err = EFIKA_Matrix_init(&C2_))
         throw std::runtime_error("Could not initialize matrix C2");
 
-      A_.nr  = rcv1_10k_nr;
-      A_.nc  = rcv1_10k_nc;
-      A_.nnz = rcv1_10k_nnz;
-      A_.ia  = rcv1_10k_ia;
-      A_.ja  = rcv1_10k_ja;
-      A_.a   = rcv1_10k_a;
+      A_.mord = EFIKA_MORD_CSR;
+      A_.nr   = rcv1_10k_nr;
+      A_.nc   = rcv1_10k_nc;
+      A_.nnz  = rcv1_10k_nnz;
+      A_.ia   = rcv1_10k_ia;
+      A_.ja   = rcv1_10k_ja;
+      A_.a    = rcv1_10k_a;
 
-      B1_.nr  = rcv1_10k_nr;
-      B1_.nc  = rcv1_10k_nc;
-      B1_.nnz = rcv1_10k_nnz;
-      B1_.ia  = rcv1_10k_ia;
-      B1_.ja  = rcv1_10k_ja;
-      B1_.a   = rcv1_10k_a;
+      B1_.mord = EFIKA_MORD_CSC;
+      B1_.nr   = rcv1_10k_nr;
+      B1_.nc   = rcv1_10k_nc;
+      B1_.nnz  = rcv1_10k_nnz;
+      B1_.ia   = rcv1_10k_ia;
+      B1_.ja   = rcv1_10k_ja;
+      B1_.a    = rcv1_10k_a;
 
-      if (int err = EFIKA_Matrix_iidx(&A_, &B2_))
+      if (int err = EFIKA_Matrix_conv(&A_, &B2_, EFIKA_MORD_CSC))
         throw std::runtime_error("Could not create inverted index B2");
+      B2_.mord = EFIKA_MORD_CSR;
 
       C1_.nr = rcv1_10k_nr;
       C1_.nc = rcv1_10k_nc;
@@ -65,7 +68,8 @@ class BLAS : public ::testing::Test {
       if (!(C2_.ia && C2_.ja && C2_.a))
         throw std::runtime_error("Could not allocate solution matrix C2");
 
-      h_ = static_cast<EFIKA_val_t*>(malloc(std::max(rcv1_10k_nr, rcv1_10k_nc) * sizeof(*h_)));
+      h_ = static_cast<EFIKA_val_t*>(calloc(std::max(rcv1_10k_nr, rcv1_10k_nc),
+                                     sizeof(*h_)));
 
       if (!h_)
         throw std::runtime_error("Could not allocate scratch space");
@@ -93,13 +97,13 @@ TEST_F(BLAS, SpGEMM) {
   efika_BLAS_spgemm_csr_csc(A_.nr, B1_.nr, A_.ia, A_.ja, A_.a, B1_.ia, B1_.ja,
                             B1_.a, C1_.ia, C1_.ja, C1_.a, h_);
 
-  efika_BLAS_spgemm_csr_idx(A_.nr, A_.ia, A_.ja, A_.a, B2_.ia, B2_.ja, B2_.a,
+  efika_BLAS_spgemm_csr_csr(A_.nr, A_.ia, A_.ja, A_.a, B2_.ia, B2_.ja, B2_.a,
                             C2_.ia, C2_.ja, C2_.a, h_);
 
   ASSERT_EQ(C1_.nr, C2_.nr);
   ASSERT_EQ(C1_.nc, C2_.nc);
   for (EFIKA_ind_t i = 0; i <= C1_.nr; i++)
-    ASSERT_EQ(C1_.ia[i], C2_.ia[i]);
+    ASSERT_EQ(C1_.ia[i], C2_.ia[i]) << "i = " << i;
   for (EFIKA_ind_t i = 1; i <= C1_.nr; i++)
     ASSERT_GE(C1_.ia[i], C1_.ia[i - 1]);
 
