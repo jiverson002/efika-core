@@ -109,7 +109,16 @@ BLAS_spgemm_csr_csr(
 /*! */
 /*----------------------------------------------------------------------------*/
 static inline bool
-RSB_fits_in_cache(ind_t const a_nnz, ind_t const b_nnz)
+RSB_is_split(ind_t const n)
+{
+  return n > (ind_t)1 << (sizeof(ind_t) * CHAR_BIT / 2);
+}
+
+/*----------------------------------------------------------------------------*/
+/*! */
+/*----------------------------------------------------------------------------*/
+static inline bool
+RSB_in_cache(ind_t const a_nnz, ind_t const b_nnz)
 {
   return true;
   (void)a_nnz;
@@ -199,7 +208,7 @@ RSB_spgemm(
     return;
 
   /* check if multiplication can be done entirely in cache */
-  if (RSB_fits_in_cache(a_nnz, b_nnz)) {
+  if (!RSB_is_split(n) && RSB_in_cache(a_nnz, b_nnz)) {
     RSB_spgemm_cache(a_ro, a_co, a_nnz, a_za, a_a,  /* A * B */
                      b_ro, b_co, b_nnz, b_za, b_a);
     return;
@@ -219,20 +228,20 @@ RSB_spgemm(
   ind_t const b_csp = b_co + nn;
 
   /* determine if splits are stored implicitly or explicitly */
-  if (n <= (ind_t)1 << (sizeof(ind_t) * CHAR_BIT / 2)) {
-    a_sp[1] = RSB_bsearch(1, a_rsp, a_za, a_nnz);
-    a_sp[0] = RSB_bsearch(0, a_csp, a_za, a_sp[1]);
-    a_sp[2] = a_sp[0] + RSB_bsearch(0, a_csp, a_za + a_sp[1], a_nnz - a_sp[1]);
-
-    b_sp[1] = RSB_bsearch(1, b_rsp, b_za, b_nnz);
-    b_sp[0] = RSB_bsearch(0, b_csp, b_za, b_sp[1]);
-    b_sp[2] = b_sp[0] + RSB_bsearch(0, b_csp, b_za + b_sp[1], b_nnz - b_sp[1]);
-  } else {
+  if (RSB_is_split(n)) {
     a_sp[0] = a_sa[0]; a_sp[1] = a_sa[1]; a_sp[2] = a_sa[2];
     a_sp[3] = a_sa[3]; a_sp[4] = a_sa[4]; a_sp[5] = a_sa[5];
 
     b_sp[0] = b_sa[0]; b_sp[1] = b_sa[1]; b_sp[2] = b_sa[2];
     b_sp[3] = b_sa[3]; b_sp[4] = b_sa[4]; b_sp[5] = b_sa[5];
+  } else {
+    a_sp[1] = RSB_bsearch(1, a_rsp, a_za, a_nnz);
+    a_sp[0] = RSB_bsearch(0, a_csp, a_za, a_sp[1]);
+    a_sp[2] = a_sp[1] + RSB_bsearch(0, a_csp, a_za + a_sp[1], a_nnz - a_sp[1]);
+
+    b_sp[1] = RSB_bsearch(1, b_rsp, b_za, b_nnz);
+    b_sp[0] = RSB_bsearch(0, b_csp, b_za, b_sp[1]);
+    b_sp[2] = b_sp[1] + RSB_bsearch(0, b_csp, b_za + b_sp[1], b_nnz - b_sp[1]);
   }
 
   /* compute /A/ quadrant # non-zeros */
@@ -303,8 +312,8 @@ RSB_spgemm(
 }
 
 /*----------------------------------------------------------------------------*/
-/*! Sparse-sparse matrix multiplication B = A * A', where A is stored in RSB
- *  format and A' is not stored explicitly.
+/*! Sparse-sparse matrix multiplication C = A * B, where A and B are stored in
+ *  RSB format.
  */
 /*----------------------------------------------------------------------------*/
 void

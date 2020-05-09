@@ -24,11 +24,17 @@ class BLAS : public ::testing::Test {
       if (int err = EFIKA_Matrix_init(&B2_))
         throw std::runtime_error("Could not initialize matrix B2");
 
+      if (int err = EFIKA_Matrix_init(&Z_))
+        throw std::runtime_error("Could not initialize matrix Z");
+
       if (int err = EFIKA_Matrix_init(&C1_))
         throw std::runtime_error("Could not initialize matrix C1");
 
       if (int err = EFIKA_Matrix_init(&C2_))
         throw std::runtime_error("Could not initialize matrix C2");
+
+      if (int err = EFIKA_Matrix_init(&C3_))
+        throw std::runtime_error("Could not initialize matrix C3");
 
       A_.mord = EFIKA_MORD_CSR;
       A_.nr   = rcv1_10k_nr;
@@ -49,6 +55,9 @@ class BLAS : public ::testing::Test {
       if (int err = EFIKA_Matrix_conv(&A_, &B2_, EFIKA_MORD_CSC))
         throw std::runtime_error("Could not create inverted index B2");
       B2_.mord = EFIKA_MORD_CSR;
+
+      if (int err = EFIKA_Matrix_conv(&A_, &Z_, EFIKA_MORD_RSB))
+        throw std::runtime_error("Could not create inverted index Z");
 
       C1_.nr = rcv1_10k_nr;
       C1_.nc = rcv1_10k_nc;
@@ -77,8 +86,10 @@ class BLAS : public ::testing::Test {
 
     void TearDown() override {
       EFIKA_Matrix_free(&B2_);
+      EFIKA_Matrix_free(&Z_);
       EFIKA_Matrix_free(&C1_);
       EFIKA_Matrix_free(&C2_);
+      EFIKA_Matrix_free(&C3_);
       free(h_);
     }
 
@@ -86,8 +97,10 @@ class BLAS : public ::testing::Test {
     EFIKA_Matrix A_;
     EFIKA_Matrix B1_;
     EFIKA_Matrix B2_;
+    EFIKA_Matrix Z_;
     EFIKA_Matrix C1_;
     EFIKA_Matrix C2_;
+    EFIKA_Matrix C3_;
     EFIKA_val_t *h_;
 };
 
@@ -99,6 +112,11 @@ TEST_F(BLAS, SpGEMM) {
 
   efika_BLAS_spgemm_csr_csr(A_.nr, A_.ia, A_.ja, A_.a, B2_.ia, B2_.ja, B2_.a,
                             C2_.ia, C2_.ja, C2_.a, h_);
+
+  //const auto n = next_pow2(std::max(Z.nr, Z.nc));
+
+  //efika_BLAS_spgemm_csr_csr(n, Z_.nnz, Z_.sa, Z_.za, Z_.a, Z_.nnz, Z_.sa, Z_.za,
+  //                          Z_.a, ...);
 
   ASSERT_EQ(C1_.nr, C2_.nr);
   ASSERT_EQ(C1_.nc, C2_.nc);
