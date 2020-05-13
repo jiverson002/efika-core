@@ -109,7 +109,7 @@ BLAS_spgemm_csr_csr(
 /*----------------------------------------------------------------------------*/
 /*! Convert a matrix stored in z-major order to one in row-major order */
 /*----------------------------------------------------------------------------*/
-__attribute__((unused)) static inline void
+static inline void
 z2r(
   ind_t const n,
   ind_t const nnz,
@@ -117,7 +117,7 @@ z2r(
   val_t const * const restrict arsb,
   ind_t       * const restrict ia,
   ind_t       * const restrict ja,
-  ind_t       * const restrict acsr
+  val_t       * const restrict acsr
 )
 {
   ind_t const half = sizeof(ind_t) * CHAR_BIT / 2;
@@ -143,7 +143,7 @@ z2r(
 /*----------------------------------------------------------------------------*/
 /*! Convert a matrix stored in z-major order to one in column-major order */
 /*----------------------------------------------------------------------------*/
-__attribute__((unused)) static inline void
+static inline void
 z2c(
   ind_t const n,
   ind_t const nnz,
@@ -151,7 +151,7 @@ z2c(
   val_t const * const restrict arsb,
   ind_t       * const restrict ia,
   ind_t       * const restrict ja,
-  ind_t       * const restrict acsc
+  val_t       * const restrict acsc
 )
 {
   ind_t const half = sizeof(ind_t) * CHAR_BIT / 2;
@@ -176,11 +176,58 @@ z2c(
 }
 
 /*----------------------------------------------------------------------------*/
+/*! Convert a matrix stored in z-major order to one in column-major order */
+/*----------------------------------------------------------------------------*/
+static inline ind_t
+h(ind_t const k, ind_t * const restrict hm)
+{
+  /* We will concentrate values in the first HM_SIZE slots. Once those have
+   * filled, values will be placed in order starting at the end of the hash map.
+   * */
+  // FIXME: hard-code
+  ind_t const HM_SIZE = 2048;
+  ind_t const HM_UNKNOWN = (ind_t)-1;
+
+  /* Compute the slot */
+  ind_t x = k & (HM_SIZE - 1);
+
+  /* If the slot is empty, populate it with the key */
+  if (HM_UNKNOWN == hm[x])
+    hm[x] = k;
+
+  /* If we have the slot, return it. */
+  if (k == hm[x])
+    return x;
+
+  /* If the slot was filled with another value, use linear probing to find the
+   * the value or the next available slot. */
+  for (ind_t i = 1; i < HM_SIZE; i++) {
+    ind_t const y = (x + i) % HM_SIZE;
+    if (HM_UNKNOWN == hm[y])
+      hm[y] = k;
+    if (k == hm[y])
+      return y;
+  }
+
+  /* If table is completely full, just starting filling in values in order in
+   * the locations after the hash table. */
+  for (ind_t i = HM_SIZE; ; i++) {
+    if (HM_UNKNOWN == hm[i])
+      hm[i] = k;
+    if (k == hm[i])
+      return i;
+  }
+
+  /* error: should never reach here. */
+  return (ind_t)-1;
+}
+
+/*----------------------------------------------------------------------------*/
 /*! Multiply matrix A (stored in compressed column-major order) with matrix B
  *  (stored in compressed row-major order), storing the result in C, which is a
  *  sparse accumulator (hash table). */
 /*----------------------------------------------------------------------------*/
-__attribute__((unused)) static inline void
+static inline void
 cxr(
   ind_t const a_nnz,
   ind_t const * const restrict a_ja,
@@ -188,7 +235,7 @@ cxr(
   ind_t const b_nnz,
   ind_t const * const restrict b_ja,
   val_t const * const restrict b_a,
-  ind_t       * const restrict c_ja,
+  ind_t       * const restrict c_za,
   val_t       * const restrict c_a
 )
 {
@@ -205,14 +252,13 @@ cxr(
     /* for each row of A with non-zero in column c1 */
     for (; i < a_nnz && (a_ja[i] & mask) == c1; i++) {
       ind_t const r = a_ja[i] >> half;
-      val_t const v = a_a[j];
+      val_t const v = a_a[i];
 
       /* for each column of B with non-zero in row c1 */
       for (ind_t k = j; k < b_nnz && (b_ja[k] >> half) == c1; k++) {
-        ind_t const c2 = b_ja[k] & mask;
-        #define h(x, y) 0 // FIXME
-        c_ja[h(r, c2)] = r << half | c2;
-        c_a[h(r, c2)] += v * b_a[k];
+        ind_t const z = (r << half) | (b_ja[k] & mask);
+        ind_t const x = h(z, c_za);
+        c_a[x] += v * b_a[k];
       }
     }
   }
@@ -231,12 +277,10 @@ RSB_is_split(ind_t const n)
 /*! */
 /*----------------------------------------------------------------------------*/
 static inline bool
-RSB_in_cache(ind_t const n, ind_t const a_nnz, ind_t const b_nnz)
+RSB_in_cache(ind_t const a_nnz, ind_t const b_nnz)
 {
-  return true;
-  (void)n;
-  (void)a_nnz;
-  (void)b_nnz;
+  // FIXME: hard-code
+  return (a_nnz + b_nnz) < 960;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -273,6 +317,7 @@ RSB_bsearch(
 /*----------------------------------------------------------------------------*/
 static inline void
 RSB_spgemm_cache(
+  ind_t const n,
   ind_t const a_ro,
   ind_t const a_co,
   ind_t const a_nnz,
@@ -284,7 +329,8 @@ RSB_spgemm_cache(
   ind_t const * const restrict b_za,
   val_t const * const restrict b_a,
   ind_t       * const restrict c_za,
-  val_t       * const restrict c_a
+  val_t       * const restrict c_a,
+  ind_t       * const restrict ia
 )
 {
   /* XXX: At this point, we know the following:
@@ -294,18 +340,39 @@ RSB_spgemm_cache(
    *      - It is likely that A or B has many more non-zeros than the other.
    */
 
+  // FIXME: hard-code
+  static ind_t icache[960];
+  static val_t vcache[960];
+
+  ind_t * const a_ja_cache = icache;
+  val_t * const a_a_cache  = vcache;
+  ind_t * const b_ja_cache = icache + a_nnz;
+  val_t * const b_a_cache  = vcache + a_nnz;
+
+  /* */
+  z2c(n, a_nnz, a_za, a_a, ia, a_ja_cache, a_a_cache);
+  /* */
+  z2r(n, b_nnz, b_za, b_a, ia, b_ja_cache, b_a_cache);
+  /* */
+  cxr(a_nnz, a_ja_cache, a_a_cache, b_nnz, b_ja_cache, b_a_cache, c_za, c_a);
+
+  // FIXME: hack + hard-code
+  ind_t i, j;
+  for (i = 0, j = 0; i < 2048; i++) {
+    if ((ind_t)-1 != c_za[i]) {
+      c_za[j]  = c_za[i];
+      c_a[j++] = c_a[i];
+    }
+  }
+  for (; (ind_t)-1 != c_za[i]; i++, j++) {
+    c_za[j] = c_za[i];
+    c_a[j]  = c_a[i];
+  }
+
   (void)a_ro;
   (void)a_co;
-  (void)a_nnz;
-  (void)a_za;
-  (void)a_a;
   (void)b_ro;
   (void)b_co;
-  (void)b_nnz;
-  (void)b_za;
-  (void)b_a;
-  (void)c_za;
-  (void)c_a;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -328,7 +395,8 @@ RSB_spgemm(
   val_t const * const restrict b_a,
   ind_t       * const restrict c_sa,
   ind_t       * const restrict c_za,
-  val_t       * const restrict c_a
+  val_t       * const restrict c_a,
+  ind_t       * const restrict tmp
 )
 {
   /* shortcut if either matrix is all zeros */
@@ -336,12 +404,16 @@ RSB_spgemm(
     return;
 
   /* check if multiplication can be done entirely in cache */
-  if (!RSB_is_split(n) && RSB_in_cache(n, a_nnz, b_nnz)) {
-    RSB_spgemm_cache(a_ro, a_co, a_nnz, a_za, a_a,  /* C = A * B */
+  if (!RSB_is_split(n) && RSB_in_cache(a_nnz, b_nnz)) {
+    RSB_spgemm_cache(n,
+                     a_ro, a_co, a_nnz, a_za, a_a,  /* C = A * B */
                      b_ro, b_co, b_nnz, b_za, b_a,
-                     c_za, c_a);
+                     c_za, c_a,
+                     tmp);
     return;
   }
+
+  abort();
 
   /* temporary split values */
   ind_t a_sp[6] = { 0 };
@@ -417,35 +489,43 @@ RSB_spgemm(
   RSB_spgemm(nn,                                           // C11 := A11 * B11
              a_ro,  a_co,  a11_nnz, a11_sa, a11_za, a11_a,
              b_ro,  b_co,  b11_nnz, b11_sa, b11_za, b11_a,
-             c_sa, c_za, c_a);
+             c_sa, c_za, c_a,
+             tmp);
   RSB_spgemm(nn,                                           // C11 += A12 * B21
              a_ro,  a_csp, a12_nnz, a12_sa, a12_za, a12_a,
              b_rsp, b_co,  b21_nnz, b21_sa, b21_za, b21_a,
-             c_sa, c_za, c_a);
+             c_sa, c_za, c_a,
+             tmp);
   RSB_spgemm(nn,                                           // C12 := A11 * B12
              a_ro,  a_co,  a11_nnz, a11_sa, a11_za, a11_a,
              b_ro,  b_csp, b12_nnz, b12_sa, b12_za, b12_a,
-             c_sa, c_za, c_a);
+             c_sa, c_za, c_a,
+             tmp);
   RSB_spgemm(nn,                                           // C12 += A12 * B22
              a_ro,  a_csp, a12_nnz, a12_sa, a12_za, a12_a,
              b_rsp, b_csp, b22_nnz, b22_sa, b22_za, b22_a,
-             c_sa, c_za, c_a);
+             c_sa, c_za, c_a,
+             tmp);
   RSB_spgemm(nn,                                           // C21 := A21 * B11
              a_rsp, a_co,  a21_nnz, a21_sa, a21_za, a21_a,
              b_ro,  b_co,  b11_nnz, b11_sa, b11_za, b11_a,
-             c_sa, c_za, c_a);
+             c_sa, c_za, c_a,
+             tmp);
   RSB_spgemm(nn,                                           // C21 += A22 * B21
              a_rsp, a_csp, a22_nnz, a22_sa, a22_za, a22_a,
              b_rsp, b_co,  b21_nnz, b21_sa, b21_za, b21_a,
-             c_sa, c_za, c_a);
+             c_sa, c_za, c_a,
+             tmp);
   RSB_spgemm(nn,                                           // C22 := A21 * B12
              a_rsp, a_co,  a21_nnz, a21_sa, a21_za, a21_a,
              b_ro,  b_csp, b12_nnz, b12_sa, b12_za, b12_a,
-             c_sa, c_za, c_a);
+             c_sa, c_za, c_a,
+             tmp);
   RSB_spgemm(nn,                                           // C22 += A22 * B22
              a_rsp, a_csp, a22_nnz, a22_sa, a22_za, a22_a,
              b_rsp, b_csp, b22_nnz, b22_sa, b22_za, b22_a,
-             c_sa, c_za, c_a);
+             c_sa, c_za, c_a,
+             tmp);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -466,8 +546,9 @@ BLAS_spgemm_rsb_rsb(
   val_t const * const restrict b,
   ind_t       * const restrict sc,
   ind_t       * const restrict zc,
-  val_t       * const restrict c
+  val_t       * const restrict c,
+  ind_t       * const restrict tmp
 )
 {
-  RSB_spgemm(n, 0, 0, annz, sa, za, a, 0, 0, bnnz, sb, zb, b, sc, zc, c);
+  RSB_spgemm(n, 0, 0, annz, sa, za, a, 0, 0, bnnz, sb, zb, b, sc, zc, c, tmp);
 }
