@@ -1,5 +1,4 @@
 /* SPDX-License-Identifier: MIT */
-#include <limits.h>
 #include <stdlib.h>
 
 #include "efika/core.h"
@@ -9,6 +8,7 @@
 #include "efika/core/gc.h"
 #include "efika/core/pp.h"
 #include "efika/core/rename.h"
+#include "efika/core/rsb.h"
 
 /*----------------------------------------------------------------------------*/
 /* helper struct for sorting */
@@ -66,8 +66,7 @@ next_pow2(ind_t v)
 static inline ind_t
 RSB_leaf_zindex(ind_t const ro, ind_t const co, struct coord const c)
 {
-  size_t const half = sizeof(ind_t) * CHAR_BIT / 2;
-  return (c.r - ro) << half | (c.c - co);
+  return RSB_idx(c.r - ro, c.c - co);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -118,7 +117,7 @@ RSB_leaf_setup(
 /*----------------------------------------------------------------------------*/
 /*! */
 /*----------------------------------------------------------------------------*/
-static ind_t
+static void
 RSB_node_split(
   ind_t const ro,
   ind_t const co,
@@ -131,8 +130,10 @@ RSB_node_split(
 )
 {
   /* don't explicitly split node if dimensions are small enough */
-  if (n <= (ind_t)1 << (sizeof(ind_t) * CHAR_BIT / 2))
-    return RSB_leaf_setup(ro, co, nnz, kv, za, a), 0;
+  if (!RSB_is_split(n)) {
+    RSB_leaf_setup(ro, co, nnz, kv, za, a);
+    return;
+  }
 
   /* compute new dimension */
   ind_t const nn = n / 2;
@@ -146,22 +147,23 @@ RSB_node_split(
   sa[0] = RSB_node_bsearch(0, csp, kv, sa[1]);
   sa[2] = sa[1] + RSB_node_bsearch(0, csp, kv + sa[1], nnz - sa[1]);
 
-  /* */
-  ind_t nsa = 6;
+  /* compute size of book-keeping data structure */
+  ind_t const nsa = RSB_sa_size(nn);
+
+  /* compute quadrant split offsets */
+  ind_t * const sa0 = sa + 3;
+  ind_t * const sa1 = sa0 + nsa;
+  ind_t * const sa2 = sa1 + nsa;
+  ind_t * const sa3 = sa2 + nsa;
 
   /* recursively split each quadrant */
-  nsa += RSB_node_split(ro, co, nn, sa[0], kv, sa + nsa, za, a);
-  sa[3] = nsa;
-  nsa += RSB_node_split(ro, co + nn, nn, sa[1] - sa[0], kv + sa[0], sa + nsa,
-                        za + sa[0], a ? a + sa[0] : NULL);
-  sa[4] = nsa;
-  nsa += RSB_node_split(ro + nn, co, nn, sa[2] - sa[1], kv + sa[1], sa + nsa,
-                        za + sa[1], a ? a + sa[1] : NULL);
-  sa[5] = nsa;
-  nsa += RSB_node_split(ro + nn, co + nn, nn, nnz - sa[2], kv + sa[2], sa + nsa,
-                        za + sa[2], a ? a + sa[2] : NULL);
-
-  return nsa;
+  RSB_node_split(ro, co, nn, sa[0], kv, sa, za, a);
+  RSB_node_split(ro, co + nn, nn, sa[1] - sa[0], kv + sa[0], sa1, za + sa[0],
+                 a ? a + sa[0] : NULL);
+  RSB_node_split(ro + nn, co, nn, sa[2] - sa[1], kv + sa[1], sa2, za + sa[1],
+                 a ? a + sa[1] : NULL);
+  RSB_node_split(ro + nn, co + nn, nn, nnz - sa[2], kv + sa[2], sa3, za + sa[2],
+                 a ? a + sa[2] : NULL);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -249,20 +251,20 @@ csrrsb(Matrix const * const A, Matrix * const B)
   /* sort non-zeros by z-index */
   qsort(kv, a_nnz, sizeof(*kv), kv_cmp);
 
-  /* allocate new storage */
-  ind_t * const b_sa = GC_malloc(6 * a_nnz * sizeof(*b_sa));
-  ind_t * const b_za = GC_malloc(a_nnz * sizeof(*b_za));
-  val_t * b_a = NULL;
-  if (a_a)
-    b_a = GC_malloc(a_nnz * sizeof(*b_a));
-
   /* dimensions need to be powers of two for proper binary searches */
   ind_t const nr2 = next_pow2(a_nr);
   ind_t const nc2 = next_pow2(a_nc);
   ind_t const n   = nr2 > nc2 ? nr2 : nc2;
 
+  /* allocate new storage */
+  ind_t * const b_sa = GC_malloc(RSB_sa_size(n) * sizeof(*b_sa));
+  ind_t * const b_za = GC_malloc(a_nnz * sizeof(*b_za));
+  val_t * b_a = NULL;
+  if (a_a)
+    b_a = GC_malloc(a_nnz * sizeof(*b_a));
+
   /* setup book-keeping */
-  ind_t const nsa = RSB_node_split(0, 0, n, a_nnz, kv, b_sa, b_za, b_a);
+  RSB_node_split(0, 0, n, a_nnz, kv, b_sa, b_za, b_a);
 
   /* record relevant info in /B/ */
   B->sort = NONE;
@@ -270,7 +272,7 @@ csrrsb(Matrix const * const A, Matrix * const B)
   B->nr   = a_nr;
   B->nc   = a_nc;
   B->nnz  = a_nnz;
-  B->sa   = GC_realloc(b_sa, nsa * sizeof(*b_sa));
+  B->sa   = b_sa;
   B->za   = b_za;
   B->a    = b_a;
 

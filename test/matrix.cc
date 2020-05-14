@@ -7,7 +7,12 @@
 #include <gtest/gtest.h>
 
 #include "efika/core.h"
+
+#include "efika/core/rsb.h"
 #include "efika/data/rcv1_10k.h"
+
+// FIXME: hack to hide renaming
+#undef Matrix
 
 namespace {
 
@@ -161,11 +166,20 @@ TEST_F(Matrix, toRSB) {
     const auto nnz2 = sa[2] - sa[1];
     const auto nnz3 = nnz   - sa[2];
 
+    /* compute number of splits per quadrant */
+    const auto nsa = RSB_sa_size(nn);
+
+    /* compute quadrant split offsets */
+    const auto sa0 = sa + 3;
+    const auto sa1 = sa0 + nsa;
+    const auto sa2 = sa1 + nsa;
+    const auto sa3 = sa2 + nsa;
+
     /* recursively check each quadrant */
-    return check_node(ro, co, nn, nnz0, sa + 6, za, a)
-        && check_node(ro, co + nn, nn, nnz1, sa + sa[3], za + sa[0], a + sa[0])
-        && check_node(ro + nn, co, nn, nnz2, sa + sa[4], za + sa[1], a + sa[1])
-        && check_node(ro + nn, co + nn, nn, nnz3, sa + sa[5], za + sa[2], a + sa[2]);
+    return check_node(ro, co, nn, nnz0, sa0, za, a)
+        && check_node(ro, co + nn, nn, nnz1, sa1, za + sa[0], a + sa[0])
+        && check_node(ro + nn, co, nn, nnz2, sa2, za + sa[1], a + sa[1])
+        && check_node(ro + nn, co + nn, nn, nnz3, sa3, za + sa[2], a + sa[2]);
   };
 
   // FIXME: nr and nc must be powers of 2
