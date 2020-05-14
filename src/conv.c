@@ -41,24 +41,6 @@ kv_cmp(void const * const ap, void const * const bp)
 }
 
 /*----------------------------------------------------------------------------*/
-/*! http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2 */
-/*----------------------------------------------------------------------------*/
-static ind_t
-next_pow2(ind_t v)
-{
-  v--;
-  v |= v >> 1;
-  v |= v >> 2;
-  v |= v >> 4;
-  v |= v >> 8;
-  v |= v >> 16;
-#ifdef EFIKA_WITH_LONG
-  v |= v >> 32;
-#endif
-  return v + 1;
-}
-
-/*----------------------------------------------------------------------------*/
 /*! Compress a row and column index into a single ind_t value. The row index
  *  will occupy the upper half and the column index will occupy the lower half.
  */
@@ -157,7 +139,7 @@ RSB_node_split(
   ind_t * const sa3 = sa2 + nsa;
 
   /* recursively split each quadrant */
-  RSB_node_split(ro, co, nn, sa[0], kv, sa, za, a);
+  RSB_node_split(ro, co, nn, sa[0], kv, sa0, za, a);
   RSB_node_split(ro, co + nn, nn, sa[1] - sa[0], kv + sa[0], sa1, za + sa[0],
                  a ? a + sa[0] : NULL);
   RSB_node_split(ro + nn, co, nn, sa[2] - sa[1], kv + sa[1], sa2, za + sa[1],
@@ -252,9 +234,7 @@ csrrsb(Matrix const * const A, Matrix * const B)
   qsort(kv, a_nnz, sizeof(*kv), kv_cmp);
 
   /* dimensions need to be powers of two for proper binary searches */
-  ind_t const nr2 = next_pow2(a_nr);
-  ind_t const nc2 = next_pow2(a_nc);
-  ind_t const n   = nr2 > nc2 ? nr2 : nc2;
+  ind_t const n = RSB_size(a_nr, a_nc);
 
   /* allocate new storage */
   ind_t * const b_sa = GC_malloc(RSB_sa_size(n) * sizeof(*b_sa));

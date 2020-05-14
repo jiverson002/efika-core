@@ -1,5 +1,4 @@
 /* SPDX-License-Identifier: MIT */
-#include <limits.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -251,14 +250,12 @@ RSB_bsearch(
   ind_t const n
 )
 {
-  ind_t const half = sizeof(ind_t) * CHAR_BIT / 2;
-  ind_t const mask = ((ind_t)-1) >> half;
   ind_t l = 0, u = n;
 
   while (l < u) {
     ind_t const m = l + (u - l) / 2;
-    ind_t const r = (za[m] >> half);
-    ind_t const c = (za[m] &  mask);
+    ind_t const r = RSB_row(za[m]);
+    ind_t const c = RSB_col(za[m]);
     if ((row ? r : c) < k)
       l = m + 1;
     else
@@ -473,7 +470,7 @@ RSB_spgemm(
   ind_t const b22_nnz = b_nnz   - b_sp[2];
 
   /* compute /A/ quadrant arrays */
-  ind_t const * const a11_sa = a_sa + 6;
+  ind_t const * const a11_sa = a_sa + 3;
   ind_t const * const a12_sa = a_sa + a_sp[3];
   ind_t const * const a21_sa = a_sa + a_sp[4];
   ind_t const * const a22_sa = a_sa + a_sp[5];
@@ -487,7 +484,7 @@ RSB_spgemm(
   val_t const * const a22_a  = a_a ? a_a + a_sp[2] : NULL;
 
   /* compute /B/ quadrant arrays */
-  ind_t const * const b11_sa = b_sa + 6;
+  ind_t const * const b11_sa = b_sa + 3;
   ind_t const * const b12_sa = b_sa + b_sp[3];
   ind_t const * const b21_sa = b_sa + b_sp[4];
   ind_t const * const b22_sa = b_sa + b_sp[5];

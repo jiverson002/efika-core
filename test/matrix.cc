@@ -9,7 +9,20 @@
 #include "efika/core.h"
 
 #include "efika/core/rsb.h"
-#include "efika/data/rcv1_10k.h"
+#include "efika/data/bms_pos.h"
+//#include "efika/data/example.h"
+//#include "efika/data/rcv1_10k.h"
+//#include "efika/data/sports_1x1.h"
+//#include "efika/data/youtube.h"
+
+#define DATASET         bms_pos
+//#define DATASET         example
+//#define DATASET         rcv1_10k
+//#define DATASET         sports_1x1
+//#define DATASET         youtube
+#define xxdataset(d, v) d ## _ ## v
+#define xdataset(d, v)  xxdataset(d, v)
+#define dataset(v)      xdataset(DATASET, v)
 
 // FIXME: hack to hide renaming
 #undef Matrix
@@ -23,9 +36,9 @@ class Matrix : public ::testing::Test {
         throw std::runtime_error("Could not initialize matrix A");
 
       A_.mord = EFIKA_MORD_CSR;
-      A_.nr  = rcv1_10k_nr;
-      A_.nc  = rcv1_10k_nc;
-      A_.nnz = rcv1_10k_nnz;
+      A_.nr  = dataset(nr);
+      A_.nc  = dataset(nc);
+      A_.nnz = dataset(nnz);
       A_.ia = static_cast<EFIKA_ind_t*>(std::malloc((A_.nr + 1) * sizeof(EFIKA_ind_t)));
       A_.ja = static_cast<EFIKA_ind_t*>(std::malloc(A_.nnz * sizeof(EFIKA_ind_t)));
       A_.a  = static_cast<EFIKA_val_t*>(std::malloc(A_.nnz * sizeof(EFIKA_val_t)));
@@ -33,9 +46,9 @@ class Matrix : public ::testing::Test {
       if (!(A_.ia && A_.ja && A_.a))
         throw std::runtime_error("Could not allocate memory for matrix A");
 
-      std::copy(rcv1_10k_ia, rcv1_10k_ia + rcv1_10k_nr + 1, A_.ia);
-      std::copy(rcv1_10k_ja, rcv1_10k_ja + rcv1_10k_nnz, A_.ja);
-      std::copy(rcv1_10k_a, rcv1_10k_a + rcv1_10k_nnz, A_.a);
+      std::copy(dataset(ia), dataset(ia) + dataset(nr) + 1, A_.ia);
+      std::copy(dataset(ja), dataset(ja) + dataset(nnz), A_.ja);
+      std::copy(dataset(a), dataset(a) + dataset(nnz), A_.a);
 
       /* reorder columns in decreasing order of degree */
       if (int err = EFIKA_Matrix_cord(&A_, EFIKA_DEG | EFIKA_DSC))
@@ -104,15 +117,13 @@ TEST_F(Matrix, toRSB) {
     const EFIKA_ind_t nnz,
     const EFIKA_ind_t * const za,
     const EFIKA_val_t * const a
-  ) -> bool {
+  ) -> void {
     for (EFIKA_ind_t k = 0; k < nnz; k++) {
-      const auto h = sizeof(EFIKA_ind_t) * CHAR_BIT / 2;
-      const auto m = ((EFIKA_ind_t)-1) >> h;
-      const auto r = (za[k] >> h);
-      const auto c = (za[k] &  m);
+      const auto r = RSB_row(za[k]);
+      const auto c = RSB_col(za[k]);
 
-      if (r >= n) return false;
-      if (c >= n) return false;
+      ASSERT_LT(r, n);
+      ASSERT_LT(c, n);
 
       /* compensate for compressed leaf indexing */
       const auto gr = ro + r;
@@ -122,19 +133,19 @@ TEST_F(Matrix, toRSB) {
       const auto p = std::find(A_.ja + A_.ia[gr], A_.ja + A_.ia[gr + 1], gc);
 
       /* make sure that it was found */
-      if (*p != gc) return false;
+      if (p == A_.ja + A_.ia[gr + 1]) abort();
+      ASSERT_NE(p, A_.ja + A_.ia[gr + 1]);
+      ASSERT_EQ(*p, gc) << "gr = " << gr;
 
       /* find the index in the original ja array for the column */
       const auto i = A_.ia[gr] + (p - (A_.ja + A_.ia[gr]));
 
       /* make sure the non-zero value was stored correctly */
-      if (a[k] != A_.a[i]) return false;
+      ASSERT_EQ(a[k], A_.a[i]);
     }
-
-    return true;
   };
 
-  std::function<bool(
+  std::function<void(
     const EFIKA_ind_t ro,
     const EFIKA_ind_t co,
     const EFIKA_ind_t n,
@@ -152,10 +163,12 @@ TEST_F(Matrix, toRSB) {
     const EFIKA_ind_t * const sa,
     const EFIKA_ind_t * const za,
     const EFIKA_val_t * const a
-  ) -> bool {
+  ) -> void {
     /* don't explicitly split node if dimensions are small enough */
-    if (n <= (EFIKA_ind_t)1 << sizeof(EFIKA_ind_t) * CHAR_BIT / 2)
-      return check_leaf(ro, co, n, nnz, za, a);
+    if (!RSB_is_split(n)) {
+      check_leaf(ro, co, n, nnz, za, a);
+      return;
+    }
 
     /* compute quadrant dimensions */
     const auto nn = n / 2;
@@ -176,16 +189,13 @@ TEST_F(Matrix, toRSB) {
     const auto sa3 = sa2 + nsa;
 
     /* recursively check each quadrant */
-    return check_node(ro, co, nn, nnz0, sa0, za, a)
-        && check_node(ro, co + nn, nn, nnz1, sa1, za + sa[0], a + sa[0])
-        && check_node(ro + nn, co, nn, nnz2, sa2, za + sa[1], a + sa[1])
-        && check_node(ro + nn, co + nn, nn, nnz3, sa3, za + sa[2], a + sa[2]);
+    check_node(ro,      co,      nn, nnz0, sa0, za,         a);
+    check_node(ro,      co + nn, nn, nnz1, sa1, za + sa[0], a + sa[0]);
+    check_node(ro + nn, co,      nn, nnz2, sa2, za + sa[1], a + sa[1]);
+    check_node(ro + nn, co + nn, nn, nnz3, sa3, za + sa[2], a + sa[2]);
   };
 
-  // FIXME: nr and nc must be powers of 2
-  bool const valid = check_node(0, 0, 65536, Z.nnz, Z.sa, Z.za, Z.a);
-
-  ASSERT_TRUE(valid);
+  check_node(0, 0, RSB_size(Z.nr, Z.nc), Z.nnz, Z.sa, Z.za, Z.a);
 
   EFIKA_Matrix_free(&Z);
 }

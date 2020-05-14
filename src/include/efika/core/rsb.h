@@ -69,4 +69,33 @@ RSB_sa_size(ind_t const n)
   return !RSB_is_split(n) ? 0 : (n / RSB_SIZE) * (n / RSB_SIZE) - 1;
 }
 
+/*----------------------------------------------------------------------------*/
+/*! http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2 */
+/*----------------------------------------------------------------------------*/
+__attribute__((unused)) static inline ind_t
+RSB_next_pow2(ind_t v)
+{
+  v--;
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+#ifdef EFIKA_WITH_LONG
+  v |= v >> 32;
+#endif
+  return v + 1;
+}
+
+/*----------------------------------------------------------------------------*/
+/*! http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2 */
+/*----------------------------------------------------------------------------*/
+__attribute__((unused)) static inline ind_t
+RSB_size(ind_t nr, ind_t nc)
+{
+  nr = RSB_next_pow2(nr);
+  nc = RSB_next_pow2(nc);
+  return nr > nc ? nr : nc;
+}
+
 #endif /* EFIKA_CORE_RSB_H */
