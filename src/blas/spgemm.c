@@ -178,53 +178,6 @@ RSB_rsbcsc(
 /*----------------------------------------------------------------------------*/
 /*! */
 /*----------------------------------------------------------------------------*/
-static inline ind_t
-h(ind_t const k, ind_t * const restrict hm)
-{
-  /* We will concentrate values in the first HM_SIZE slots. Once those have
-   * filled, values will be placed in order starting at the end of the hash map.
-   * */
-  // FIXME: hard-code
-  ind_t const HM_SIZE = 2048;
-  ind_t const HM_UNKNOWN = (ind_t)-1;
-
-  /* Compute the slot */
-  ind_t x = k & (HM_SIZE - 1);
-
-  /* If the slot is empty, populate it with the key */
-  if (HM_UNKNOWN == hm[x])
-    hm[x] = k;
-
-  /* If we have the slot, return it. */
-  if (k == hm[x])
-    return x;
-
-  /* If the slot was filled with another value, use linear probing to find the
-   * the value or the next available slot. */
-  for (ind_t i = 1; i < HM_SIZE; i++) {
-    ind_t const y = (x + i) % HM_SIZE;
-    if (HM_UNKNOWN == hm[y])
-      hm[y] = k;
-    if (k == hm[y])
-      return y;
-  }
-
-  /* If table is completely full, just starting filling in values in order in
-   * the locations after the hash table. */
-  for (ind_t i = HM_SIZE; ; i++) {
-    if (HM_UNKNOWN == hm[i])
-      hm[i] = k;
-    if (k == hm[i])
-      return i;
-  }
-
-  /* error: should never reach here. */
-  return (ind_t)-1;
-}
-
-/*----------------------------------------------------------------------------*/
-/*! */
-/*----------------------------------------------------------------------------*/
 static inline bool
 RSB_is_split(ind_t const n)
 {
@@ -275,14 +228,15 @@ RSB_bsearch(
  *  (stored in compressed column-major order), storing the result in C, which is
  *  a sparse accumulator (hash table). */
 /*----------------------------------------------------------------------------*/
-static inline void
+static inline ind_t
 RSB_spgemm_csr_csc(
   ind_t const a_nnz,
-  ind_t const * const restrict a_ja,
+  ind_t const * const restrict a_za,
   val_t const * const restrict a_a,
   ind_t const b_nnz,
-  ind_t const * const restrict b_ja,
+  ind_t const * const restrict b_za,
   val_t const * const restrict b_a,
+  ind_t       c_nnz,
   ind_t       * const restrict c_za,
   val_t       * const restrict c_a
 )
@@ -293,20 +247,22 @@ RSB_spgemm_csr_csc(
 #define zcol(z)    ((z) &  ZMASK)
 #define zidx(r, c) ((r) << ZSHIFT | (c))
 
-  for (ind_t ii = 0, i = 0, c_nnz = 0; ii < a_nnz;) {
+  for (ind_t ii = 0, i = 0, k = 0; ii < a_nnz;) {
     /* get current row */
-    ind_t const r = zrow(a_ja[i]);
+    ind_t const r = zrow(a_za[i]);
 
     for (ind_t j = 0; j < b_nnz;) {
       /* get current column */
-      ind_t const c = zcol(b_ja[j]);
+      ind_t const c = zcol(b_za[j]);
+
+      /* initialize result */
+      val_t res = 0.0;
 
       /* merge-like dot product C_rc = <A_r*, B_*c> */
-      val_t res = 0.0;
-      for (i = ii; zrow(a_ja[i]) == r && zcol(b_ja[j]) == c;) {
-        if (zcol(a_ja[i]) < zrow(b_ja[j]))
+      for (i = ii; zrow(a_za[i]) == r && zcol(b_za[j]) == c;) {
+        if (zcol(a_za[i]) < zrow(b_za[j]))
           i++;
-        else if (zcol(a_ja[i]) > zrow(b_ja[j]))
+        else if (zcol(a_za[i]) > zrow(b_za[j]))
           j++;
         else
           res += a_a[i++] * b_a[j++];
@@ -314,17 +270,26 @@ RSB_spgemm_csr_csc(
 
       /* record result */
       if (res > 0.0) {
-        c_za[c_nnz]  = zidx(r, c);
-        c_a[c_nnz++] = res;
+        ind_t const z = zidx(r, c);
+
+        /* fast-forward k to next output element */
+        for (; c_za[k] < z; k++);
+
+        /* get output index */
+        ind_t const o = c_za[k] == z ? k : (c_za[c_nnz] = z, c_nnz++);
+
+        c_a[o] += res;
       }
 
       /* fast-forward j to next column */
-      for (; zcol(b_ja[j]) == c; j++);
+      for (; zcol(b_za[j]) == c; j++);
     }
 
     /* fast-forward ii to next row */
-    for (ii = i; zrow(a_ja[ii]) == r; ii++);
+    for (ii = i; zrow(a_za[ii]) == r; ii++);
   }
+
+  return c_nnz;
 
 #undef ZSHIFT
 #undef ZMASK
@@ -334,63 +299,21 @@ RSB_spgemm_csr_csc(
 }
 
 /*----------------------------------------------------------------------------*/
-/*! Multiply matrix A (stored in compressed column-major order) with matrix B
- *  (stored in compressed row-major order), storing the result in C, which is a
- *  sparse accumulator (hash table). */
+/*! Multiply matrix A with matrix B entirely in cache, storing the result in
+ *  matrix C (not necessarily stored in cache). The results will be stored in
+ *  row-major order in C. This function takes as input the current number of
+ *  non-zeros in C and returns the new number of non-zeros in C. */
 /*----------------------------------------------------------------------------*/
-__attribute__((unused)) static inline void
-RSB_spgemm_csc_csr(
-  ind_t const a_nnz,
-  ind_t const * const restrict a_ja,
-  val_t const * const restrict a_a,
-  ind_t const b_nnz,
-  ind_t const * const restrict b_ja,
-  val_t const * const restrict b_a,
-  ind_t       * const restrict c_za,
-  val_t       * const restrict c_a
-)
-{
-  ind_t const half = sizeof(ind_t) * CHAR_BIT / 2;
-  ind_t const mask = ((ind_t)-1) >> half;
-
-  for (ind_t i = 0, j = 0; i < a_nnz;) {
-    /* fast-forward to the next column */
-    ind_t const c1 = a_ja[i] & mask;
-
-    /* fast-forward b to row c1 */
-    for (; j < b_nnz && (b_ja[j] >> half) < c1; j++);
-
-    /* for each row of A with non-zero in column c1 */
-    for (; i < a_nnz && (a_ja[i] & mask) == c1; i++) {
-      ind_t const r = a_ja[i] >> half;
-      val_t const v = a_a[i];
-
-      /* for each column of B with non-zero in row c1 */
-      for (ind_t k = j; k < b_nnz && (b_ja[k] >> half) == c1; k++) {
-        ind_t const z = (r << half) | (b_ja[k] & mask);
-        ind_t const x = h(z, c_za);
-        c_a[x] += v * b_a[k];
-      }
-    }
-  }
-}
-
-/*----------------------------------------------------------------------------*/
-/*! */
-/*----------------------------------------------------------------------------*/
-static inline void
+static inline ind_t
 RSB_spgemm_cache(
   ind_t const n,
-  ind_t const a_ro,
-  ind_t const a_co,
   ind_t const a_nnz,
   ind_t const * const restrict a_za,
   val_t const * const restrict a_a,
-  ind_t const b_ro,
-  ind_t const b_co,
   ind_t const b_nnz,
   ind_t const * const restrict b_za,
   val_t const * const restrict b_a,
+  ind_t const c_nnz,
   ind_t       * const restrict c_za,
   val_t       * const restrict c_a,
   ind_t       * const restrict ia
@@ -407,32 +330,29 @@ RSB_spgemm_cache(
   static ind_t icache[4002];
   static val_t vcache[4002];
 
-  ind_t * const a_ja_cache = icache;
+  ind_t * const a_za_cache = icache;
   val_t * const a_a_cache  = vcache;
-  ind_t * const b_ja_cache = icache + a_nnz + 1;
+  ind_t * const b_za_cache = icache + a_nnz + 1;
   val_t * const b_a_cache  = vcache + a_nnz + 1;
 
   /* */
-  RSB_rsbcsr(n, a_nnz, a_za, a_a, ia, a_ja_cache, a_a_cache);
-  a_ja_cache[a_nnz] = ~a_ja_cache[a_nnz - 1]; // sentinel value
-  /* */
-  RSB_rsbcsc(n, b_nnz, b_za, b_a, ia, b_ja_cache, b_a_cache);
-  b_ja_cache[b_nnz] = ~b_ja_cache[b_nnz - 1]; // sentinel value
-  /* */
-  RSB_spgemm_csr_csc(a_nnz, a_ja_cache, a_a_cache,
-                     b_nnz, b_ja_cache, b_a_cache,
-                     c_za, c_a);
+  RSB_rsbcsr(n, a_nnz, a_za, a_a, ia, a_za_cache, a_a_cache);
+  a_za_cache[a_nnz] = ~a_za_cache[a_nnz - 1]; // sentinel value
 
-  (void)a_ro;
-  (void)a_co;
-  (void)b_ro;
-  (void)b_co;
+  /* */
+  RSB_rsbcsc(n, b_nnz, b_za, b_a, ia, b_za_cache, b_a_cache);
+  b_za_cache[b_nnz] = ~b_za_cache[b_nnz - 1]; // sentinel value
+
+  /* */
+  return RSB_spgemm_csr_csc(a_nnz, a_za_cache, a_a_cache,
+                            b_nnz, b_za_cache, b_a_cache,
+                            c_nnz, c_za, c_a);
 }
 
 /*----------------------------------------------------------------------------*/
 /*! */
 /*----------------------------------------------------------------------------*/
-static void
+static ind_t
 RSB_spgemm(
   ind_t const n,
   ind_t const a_ro,
@@ -455,19 +375,16 @@ RSB_spgemm(
 {
   /* shortcut if either matrix is all zeros */
   if (0 == a_nnz || 0 == b_nnz)
-    return;
+    return 0;
 
   /* check if multiplication can be done entirely in cache */
   if (!RSB_is_split(n) && RSB_in_cache(a_nnz, b_nnz)) {
-    RSB_spgemm_cache(n,
-                     a_ro, a_co, a_nnz, a_za, a_a,  /* C = A * B */
-                     b_ro, b_co, b_nnz, b_za, b_a,
-                     c_za, c_a,
-                     tmp);
-    return;
+    return RSB_spgemm_cache(n,
+                            a_nnz, a_za, a_a,  /* C = A * B */
+                            b_nnz, b_za, b_a,
+                            0, c_za, c_a,
+                            tmp);
   }
-
-  abort();
 
   /* temporary split values */
   ind_t a_sp[6] = { 0 };
@@ -580,6 +497,8 @@ RSB_spgemm(
              b_rsp, b_csp, b22_nnz, b22_sa, b22_za, b22_a,
              c_sa, c_za, c_a,
              tmp);
+
+  return 0;
 }
 
 /*----------------------------------------------------------------------------*/
