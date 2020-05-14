@@ -153,25 +153,17 @@ TEST_F(BLAS, SpGEMM_RSB) {
   };
   std::array<EFIKA_val_t, 8> b_a { 1, 1, 5, 2, 3, 6, 4, 7 };
 
-  //std::array<EFIKA_ind_t, 10> d_za {
-  //  0x00000000 /* r0c0 */, 0x00030000 /* r3c0 */, 0x00010001 /* r1c1 */,
-  //  0x00000003 /* r0c3 */, 0x00030003 /* r3c3 */, 0x00010002 /* r1c2 */,
-  //  0x00020001 /* r2c1 */, 0x00020002 /* r2c2 */, 0x00020003 /* r2c3 */,
-  //  0x00030002 /* r3c2 */
-  //};
-  //std::array<EFIKA_val_t, 10> d_a { 0.0, 0.0, 1.0, 0.0, 110.0, 2.0, 2.0, 29.0,
-  //                                  18.0, 18.0 };
   std::array<EFIKA_ind_t, 10> d_za {
     0x00000000 /* r0c0 */, 0x00000003 /* r0c3 */, 0x00010001 /* r1c1 */,
     0x00010002 /* r1c2 */, 0x00020001 /* r2c1 */, 0x00020002 /* r2c2 */,
     0x00020003 /* r2c3 */, 0x00030000 /* r3c0 */, 0x00030002 /* r3c2 */,
     0x00030003 /* r3c3 */
   };
-  std::array<EFIKA_val_t, 10> d_a { 1.0, 5.0, 1.0, 2.0, 2.0, 29.0, 18.0, 5.0,
-                                    18.0, 110.0 };
+  std::array<EFIKA_val_t, 10> d_a { 2.0, 10.0, 2.0, 4.0, 4.0, 58.0, 36.0, 10.0,
+                                    36.0, 220.0 };
 
-  std::array<EFIKA_ind_t, 2049> c_za;
-  std::array<EFIKA_val_t, 2049> c_a;
+  std::array<EFIKA_ind_t, 10> c_za;
+  std::array<EFIKA_val_t, 10> c_a;
   std::array<EFIKA_ind_t, 20> ih;
 
   for (EFIKA_ind_t i = 0; i < c_za.size(); i++) {
@@ -185,7 +177,13 @@ TEST_F(BLAS, SpGEMM_RSB) {
                             NULL, c_za.data(), c_a.data(),
                             ih.data());
 
-  for (EFIKA_ind_t i = 0; (EFIKA_ind_t)-1 != c_za[i]; i++) {
+  efika_BLAS_spgemm_rsb_rsb(8,
+                            8, NULL, a_za.data(), a_a.data(),
+                            8, NULL, b_za.data(), b_a.data(),
+                            NULL, c_za.data(), c_a.data(),
+                            ih.data());
+
+  for (EFIKA_ind_t i = 0; i < c_za.size(); i++) {
     ASSERT_EQ(c_za[i], d_za[i]);
     ASSERT_EQ(c_a[i], d_a[i]);
   }
