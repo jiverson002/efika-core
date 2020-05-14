@@ -110,7 +110,7 @@ BLAS_spgemm_csr_csr(
 /*! Convert a matrix stored in z-major order to one in row-major order */
 /*----------------------------------------------------------------------------*/
 static inline void
-z2r(
+RSB_rsbcsr(
   ind_t const n,
   ind_t const nnz,
   ind_t const * const restrict za,
@@ -144,7 +144,7 @@ z2r(
 /*! Convert a matrix stored in z-major order to one in column-major order */
 /*----------------------------------------------------------------------------*/
 static inline void
-z2c(
+RSB_rsbcsc(
   ind_t const n,
   ind_t const nnz,
   ind_t const * const restrict za,
@@ -176,7 +176,7 @@ z2c(
 }
 
 /*----------------------------------------------------------------------------*/
-/*! Convert a matrix stored in z-major order to one in column-major order */
+/*! */
 /*----------------------------------------------------------------------------*/
 static inline ind_t
 h(ind_t const k, ind_t * const restrict hm)
@@ -223,12 +223,123 @@ h(ind_t const k, ind_t * const restrict hm)
 }
 
 /*----------------------------------------------------------------------------*/
+/*! */
+/*----------------------------------------------------------------------------*/
+static inline bool
+RSB_is_split(ind_t const n)
+{
+  return n > ((ind_t)1 << (sizeof(ind_t) * CHAR_BIT / 2));
+}
+
+/*----------------------------------------------------------------------------*/
+/*! */
+/*----------------------------------------------------------------------------*/
+static inline bool
+RSB_in_cache(ind_t const a_nnz, ind_t const b_nnz)
+{
+  // FIXME: hard-code
+  return (a_nnz + b_nnz) <= 4000;
+}
+
+/*----------------------------------------------------------------------------*/
+/*! Compute the smallest index of an element that is greater than or equal to a
+ *  given value. */
+/*----------------------------------------------------------------------------*/
+static inline ind_t
+RSB_bsearch(
+  int   const row,
+  ind_t const k,
+  ind_t const * const restrict za,
+  ind_t const n
+)
+{
+  ind_t const half = sizeof(ind_t) * CHAR_BIT / 2;
+  ind_t const mask = ((ind_t)-1) >> half;
+  ind_t l = 0, u = n;
+
+  while (l < u) {
+    ind_t const m = l + (u - l) / 2;
+    ind_t const r = (za[m] >> half);
+    ind_t const c = (za[m] &  mask);
+    if ((row ? r : c) < k)
+      l = m + 1;
+    else
+      u = m;
+  }
+
+  return l;
+}
+
+/*----------------------------------------------------------------------------*/
+/*! Multiply matrix A (stored in compressed row-major order) with matrix B
+ *  (stored in compressed column-major order), storing the result in C, which is
+ *  a sparse accumulator (hash table). */
+/*----------------------------------------------------------------------------*/
+static inline void
+RSB_spgemm_csr_csc(
+  ind_t const a_nnz,
+  ind_t const * const restrict a_ja,
+  val_t const * const restrict a_a,
+  ind_t const b_nnz,
+  ind_t const * const restrict b_ja,
+  val_t const * const restrict b_a,
+  ind_t       * const restrict c_za,
+  val_t       * const restrict c_a
+)
+{
+#define ZSHIFT     (sizeof(ind_t) * CHAR_BIT / 2)
+#define ZMASK      (((ind_t)-1) >> ZSHIFT)
+#define zrow(z)    ((z) >> ZSHIFT)
+#define zcol(z)    ((z) &  ZMASK)
+#define zidx(r, c) ((r) << ZSHIFT | (c))
+
+  for (ind_t ii = 0, i = 0, c_nnz = 0; ii < a_nnz;) {
+    /* get current row */
+    ind_t const r = zrow(a_ja[i]);
+
+    for (ind_t j = 0; j < b_nnz;) {
+      /* get current column */
+      ind_t const c = zcol(b_ja[j]);
+
+      /* merge-like dot product C_rc = <A_r*, B_*c> */
+      val_t res = 0.0;
+      for (i = ii; zrow(a_ja[i]) == r && zcol(b_ja[j]) == c;) {
+        if (zcol(a_ja[i]) < zrow(b_ja[j]))
+          i++;
+        else if (zcol(a_ja[i]) > zrow(b_ja[j]))
+          j++;
+        else
+          res += a_a[i++] * b_a[j++];
+      }
+
+      /* record result */
+      if (res > 0.0) {
+        c_za[c_nnz]  = zidx(r, c);
+        c_a[c_nnz++] = res;
+      }
+
+      /* fast-forward j to next column */
+      for (; zcol(b_ja[j]) == c; j++);
+    }
+
+    /* fast-forward ii to next row */
+    for (ii = i; zrow(a_ja[ii]) == r; ii++);
+  }
+
+#undef ZSHIFT
+#undef ZMASK
+#undef zrow
+#undef zcol
+#undef zidx
+}
+
+/*----------------------------------------------------------------------------*/
 /*! Multiply matrix A (stored in compressed column-major order) with matrix B
  *  (stored in compressed row-major order), storing the result in C, which is a
  *  sparse accumulator (hash table). */
 /*----------------------------------------------------------------------------*/
-static inline void
-cxr(
+__attribute__((unused)) static inline void
+RSB_spgemm_csc_csr(
   ind_t const a_nnz,
   ind_t const * const restrict a_ja,
   val_t const * const restrict a_a,
@@ -267,54 +378,6 @@ cxr(
 /*----------------------------------------------------------------------------*/
 /*! */
 /*----------------------------------------------------------------------------*/
-static inline bool
-RSB_is_split(ind_t const n)
-{
-  return n > ((ind_t)1 << (sizeof(ind_t) * CHAR_BIT / 2));
-}
-
-/*----------------------------------------------------------------------------*/
-/*! */
-/*----------------------------------------------------------------------------*/
-static inline bool
-RSB_in_cache(ind_t const a_nnz, ind_t const b_nnz)
-{
-  // FIXME: hard-code
-  return (a_nnz + b_nnz) < 960;
-}
-
-/*----------------------------------------------------------------------------*/
-/*! Compute the smallest index of an element that is greater than or equal to a
- *  given value. */
-/*----------------------------------------------------------------------------*/
-static inline ind_t
-RSB_bsearch(
-  int   const row,
-  ind_t const k,
-  ind_t const * const restrict za,
-  ind_t const n
-)
-{
-  ind_t const half = sizeof(ind_t) * CHAR_BIT / 2;
-  ind_t const mask = ((ind_t)-1) >> half;
-  ind_t l = 0, u = n;
-
-  while (l < u) {
-    ind_t const m = l + (u - l) / 2;
-    ind_t const r = (za[m] >> half);
-    ind_t const c = (za[m] &  mask);
-    if ((row ? r : c) < k)
-      l = m + 1;
-    else
-      u = m;
-  }
-
-  return l;
-}
-
-/*----------------------------------------------------------------------------*/
-/*! */
-/*----------------------------------------------------------------------------*/
 static inline void
 RSB_spgemm_cache(
   ind_t const n,
@@ -341,33 +404,24 @@ RSB_spgemm_cache(
    */
 
   // FIXME: hard-code
-  static ind_t icache[960];
-  static val_t vcache[960];
+  static ind_t icache[4002];
+  static val_t vcache[4002];
 
   ind_t * const a_ja_cache = icache;
   val_t * const a_a_cache  = vcache;
-  ind_t * const b_ja_cache = icache + a_nnz;
-  val_t * const b_a_cache  = vcache + a_nnz;
+  ind_t * const b_ja_cache = icache + a_nnz + 1;
+  val_t * const b_a_cache  = vcache + a_nnz + 1;
 
   /* */
-  z2c(n, a_nnz, a_za, a_a, ia, a_ja_cache, a_a_cache);
+  RSB_rsbcsr(n, a_nnz, a_za, a_a, ia, a_ja_cache, a_a_cache);
+  a_ja_cache[a_nnz] = ~a_ja_cache[a_nnz - 1]; // sentinel value
   /* */
-  z2r(n, b_nnz, b_za, b_a, ia, b_ja_cache, b_a_cache);
+  RSB_rsbcsc(n, b_nnz, b_za, b_a, ia, b_ja_cache, b_a_cache);
+  b_ja_cache[b_nnz] = ~b_ja_cache[b_nnz - 1]; // sentinel value
   /* */
-  cxr(a_nnz, a_ja_cache, a_a_cache, b_nnz, b_ja_cache, b_a_cache, c_za, c_a);
-
-  // FIXME: hack + hard-code
-  ind_t i, j;
-  for (i = 0, j = 0; i < 2048; i++) {
-    if ((ind_t)-1 != c_za[i]) {
-      c_za[j]  = c_za[i];
-      c_a[j++] = c_a[i];
-    }
-  }
-  for (; (ind_t)-1 != c_za[i]; i++, j++) {
-    c_za[j] = c_za[i];
-    c_a[j]  = c_a[i];
-  }
+  RSB_spgemm_csr_csc(a_nnz, a_ja_cache, a_a_cache,
+                     b_nnz, b_ja_cache, b_a_cache,
+                     c_za, c_a);
 
   (void)a_ro;
   (void)a_co;
