@@ -9,6 +9,13 @@
 
 #include "efika/core/rename.h"
 
+#ifdef __cplusplus
+# ifndef restrict
+#   define undef_restrict
+#   define restrict
+# endif
+#endif
+
 /*----------------------------------------------------------------------------*/
 /*! */
 /*----------------------------------------------------------------------------*/
@@ -97,5 +104,38 @@ RSB_size(ind_t nr, ind_t nc)
   nc = RSB_next_pow2(nc);
   return nr > nc ? nr : nc;
 }
+
+/*----------------------------------------------------------------------------*/
+/*! Compute the smallest index of an element that is greater than or equal to a
+ *  given value. */
+/*----------------------------------------------------------------------------*/
+__attribute__((unused)) static inline ind_t
+RSB_bsearch(
+  int   const row,
+  ind_t const k,
+  ind_t const * const restrict za,
+  ind_t const n
+)
+{
+  ind_t l = 0, u = n;
+
+  while (l < u) {
+    ind_t const m = l + (u - l) / 2;
+    ind_t const r = RSB_row(za[m]);
+    ind_t const c = RSB_col(za[m]);
+    if ((row ? r : c) < k)
+      l = m + 1;
+    else
+      u = m;
+  }
+
+  return l;
+}
+
+#ifdef __cplusplus
+# ifdef undef_restrict
+#   undef restrict
+# endif
+#endif
 
 #endif /* EFIKA_CORE_RSB_H */

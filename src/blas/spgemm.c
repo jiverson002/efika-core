@@ -171,64 +171,6 @@ RSB_rsbcsc(
 }
 
 /*----------------------------------------------------------------------------*/
-/*! Merge a matrix stored in row-major compressed index into a matrix stored in
- *  CSR format. */
-/*----------------------------------------------------------------------------*/
-__attribute__((unused)) static inline void
-RSB_merge(
-  ind_t const a_nnz,
-  ind_t const * const restrict a_za,
-  val_t const * const restrict a_a,
-  ind_t const nr,
-  ind_t       * const restrict b_ia,
-  ind_t       * const restrict b_ja,
-  val_t       * const restrict b_a,
-  ind_t       * const restrict ia
-)
-{
-  /* clear scratch memory */
-  memset(ia, 0, (nr + 1) * sizeof(*ia));
-
-  /* compute counts for each row */
-  for (ind_t i = 0; i < nr; i++)
-    ia[i] = b_ia[i + 1] - b_ia[i];
-
-  /* update counts with values from row-major compressed index matrix */
-  for (ind_t i = 0; i < a_nnz; i++)
-    ia[RSB_row(a_za[i])]++;
-
-  /* prefix-sum to compute starting offsets for each row */
-  for (ind_t i = 0, p = 0; i <= nr; i++) {
-    ind_t const t = ia[i];
-    ia[i] = p;
-    p += t;
-  }
-
-  /* put existing values into their new positions first -- this is done in
-   * reverse order to avoid overwriting existing values. */
-  for (ind_t ii = nr; ii > 0; ii--) {
-    ind_t const i = ii - 1;
-    for (ind_t jj = b_ja[i + 1]; jj > b_ia[i]; jj--) {
-      ind_t const j = jj - 1;
-      b_ja[ia[i]]  = b_ja[j];
-      b_a[ia[i]++] = b_a[j];
-    }
-  }
-
-  /* put new values into their new positions */
-  for (ind_t i = 0; i < a_nnz; i++) {
-    ind_t const r = RSB_row(a_za[i]);
-    b_ja[ia[r]]  = a_za[i];
-    b_a[ia[r]++] = a_a[i];
-  }
-
-  /* update row pointers */
-  for (ind_t i = nr; i > 0; i--)
-    b_ia[i] = ia[i - 1];
-  b_ia[0] = 0;
-}
-
-/*----------------------------------------------------------------------------*/
 /*! */
 /*----------------------------------------------------------------------------*/
 static inline bool
@@ -236,33 +178,6 @@ RSB_in_cache(ind_t const a_nnz, ind_t const b_nnz)
 {
   // FIXME: hard-code
   return (a_nnz + b_nnz) <= 4000;
-}
-
-/*----------------------------------------------------------------------------*/
-/*! Compute the smallest index of an element that is greater than or equal to a
- *  given value. */
-/*----------------------------------------------------------------------------*/
-static inline ind_t
-RSB_bsearch(
-  int   const row,
-  ind_t const k,
-  ind_t const * const restrict za,
-  ind_t const n
-)
-{
-  ind_t l = 0, u = n;
-
-  while (l < u) {
-    ind_t const m = l + (u - l) / 2;
-    ind_t const r = RSB_row(za[m]);
-    ind_t const c = RSB_col(za[m]);
-    if ((row ? r : c) < k)
-      l = m + 1;
-    else
-      u = m;
-  }
-
-  return l;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -428,8 +343,8 @@ RSB_spgemm(
   }
 
   /* temporary split values */
-  ind_t a_sp[6] = { 0 };
-  ind_t b_sp[6] = { 0 };
+  ind_t a_sp[3];
+  ind_t b_sp[3];
 
   /* compute quadrant dimensions */
   ind_t const nn = n / 2;
@@ -440,13 +355,18 @@ RSB_spgemm(
   ind_t const b_rsp = b_ro + nn;
   ind_t const b_csp = b_co + nn;
 
+  /* compute number of splits per quadrant */
+  ind_t const nsa = RSB_sa_size(nn);
+  ind_t const sa11 = 3;
+  ind_t const sa12 = sa11 + nsa;
+  ind_t const sa21 = sa12 + nsa;
+  ind_t const sa22 = sa21 + nsa;
+
   /* determine if splits are stored implicitly or explicitly */
   if (RSB_is_split(n)) {
     a_sp[0] = a_sa[0]; a_sp[1] = a_sa[1]; a_sp[2] = a_sa[2];
-    a_sp[3] = a_sa[3]; a_sp[4] = a_sa[4]; a_sp[5] = a_sa[5];
 
     b_sp[0] = b_sa[0]; b_sp[1] = b_sa[1]; b_sp[2] = b_sa[2];
-    b_sp[3] = b_sa[3]; b_sp[4] = b_sa[4]; b_sp[5] = b_sa[5];
   } else {
     a_sp[1] = RSB_bsearch(1, a_rsp, a_za, a_nnz);
     a_sp[0] = RSB_bsearch(0, a_csp, a_za, a_sp[1]);
@@ -470,97 +390,95 @@ RSB_spgemm(
   ind_t const b22_nnz = b_nnz   - b_sp[2];
 
   /* compute /A/ quadrant arrays */
-  ind_t const * const a11_sa = a_sa + 3;
-  ind_t const * const a12_sa = a_sa + a_sp[3];
-  ind_t const * const a21_sa = a_sa + a_sp[4];
-  ind_t const * const a22_sa = a_sa + a_sp[5];
+  ind_t const * const a11_sa = a_sa + sa11;
+  ind_t const * const a12_sa = a_sa + sa12;
+  ind_t const * const a21_sa = a_sa + sa21;
+  ind_t const * const a22_sa = a_sa + sa22;
   ind_t const * const a11_za = a_za;
   ind_t const * const a12_za = a_za + a_sp[0];
   ind_t const * const a21_za = a_za + a_sp[1];
   ind_t const * const a22_za = a_za + a_sp[2];
   val_t const * const a11_a  = a_a;
-  val_t const * const a12_a  = a_a ? a_a + a_sp[0] : NULL;
-  val_t const * const a21_a  = a_a ? a_a + a_sp[1] : NULL;
-  val_t const * const a22_a  = a_a ? a_a + a_sp[2] : NULL;
+  val_t const * const a12_a  = a_a + a_sp[0];
+  val_t const * const a21_a  = a_a + a_sp[1];
+  val_t const * const a22_a  = a_a + a_sp[2];
 
   /* compute /B/ quadrant arrays */
-  ind_t const * const b11_sa = b_sa + 3;
-  ind_t const * const b12_sa = b_sa + b_sp[3];
-  ind_t const * const b21_sa = b_sa + b_sp[4];
-  ind_t const * const b22_sa = b_sa + b_sp[5];
+  ind_t const * const b11_sa = b_sa + sa11;
+  ind_t const * const b12_sa = b_sa + sa12;
+  ind_t const * const b21_sa = b_sa + sa21;
+  ind_t const * const b22_sa = b_sa + sa22;
   ind_t const * const b11_za = b_za;
   ind_t const * const b12_za = b_za + b_sp[0];
   ind_t const * const b21_za = b_za + b_sp[1];
   ind_t const * const b22_za = b_za + b_sp[2];
   val_t const * const b11_a  = b_a;
-  val_t const * const b12_a  = b_a ? b_a + b_sp[0] : NULL;
-  val_t const * const b21_a  = b_a ? b_a + b_sp[1] : NULL;
-  val_t const * const b22_a  = b_a ? b_a + b_sp[2] : NULL;
+  val_t const * const b12_a  = b_a + b_sp[0];
+  val_t const * const b21_a  = b_a + b_sp[1];
+  val_t const * const b22_a  = b_a + b_sp[2];
 
-  /* */ // TODO: How to compute correct nsa?
-  ind_t nsa = 3;
+  /* compute /C/ quadrant arrays */
+  ind_t * const c11_sa = c_sa + sa11;
+  ind_t * const c12_sa = c_sa + sa12;
+  ind_t * const c21_sa = c_sa + sa21;
+  ind_t * const c22_sa = c_sa + sa22;
 
   /* C11 := A11 * B11 */
-  nsa += RSB_spgemm(nn,
-                    a_ro,  a_co,  a11_nnz, a11_sa, a11_za, a11_a,
-                    b_ro,  b_co,  b11_nnz, b11_sa, b11_za, b11_a,
-                    0, c_sa + nsa, c_za, c_a,
-                    tmp);
+  ind_t nnz = RSB_spgemm(nn,
+                         a_ro,  a_co,  a11_nnz, a11_sa, a11_za, a11_a,
+                         b_ro,  b_co,  b11_nnz, b11_sa, b11_za, b11_a,
+                         0, c11_sa, c_za, c_a,
+                         tmp);
   /* C11 += A12 * B21 */
-  nsa += RSB_spgemm(nn,
-                    a_ro,  a_csp, a12_nnz, a12_sa, a12_za, a12_a,
-                    b_rsp, b_co,  b21_nnz, b21_sa, b21_za, b21_a,
-                    c_nnz, c_sa + nsa, c_za, c_a,
-                    tmp);
-  // c_sa[0] = nnz;
-  // c_sa[3] = nsa;
+  nnz = RSB_spgemm(nn,
+                   a_ro,  a_csp, a12_nnz, a12_sa, a12_za, a12_a,
+                   b_rsp, b_co,  b21_nnz, b21_sa, b21_za, b21_a,
+                   nnz, c11_sa, c_za + nnz, c_a + nnz,
+                   tmp);
+  c_sa[0] = nnz;
 
   /* C12 := A11 * B12 */
-  nsa += RSB_spgemm(nn,
-                    a_ro,  a_co,  a11_nnz, a11_sa, a11_za, a11_a,
-                    b_ro,  b_csp, b12_nnz, b12_sa, b12_za, b12_a,
-                    0, c_sa + nsa, c_za + c_nnz, c_a + c_nnz,
-                    tmp);
+  nnz = RSB_spgemm(nn,
+                   a_ro,  a_co,  a11_nnz, a11_sa, a11_za, a11_a,
+                   b_ro,  b_csp, b12_nnz, b12_sa, b12_za, b12_a,
+                   0, c12_sa, c_za + c_sa[0], c_a + c_sa[0],
+                   tmp);
   /* C12 += A12 * B22 */
-  nsa += RSB_spgemm(nn,
-                    a_ro,  a_csp, a12_nnz, a12_sa, a12_za, a12_a,
-                    b_rsp, b_csp, b22_nnz, b22_sa, b22_za, b22_a,
-                    c_nnz, c_sa + nsa, c_za + c_nnz, c_a + c_nnz,
-                    tmp);
-  // c_sa[1] = nnz;
-  // c_sa[4] = nsa;
+  nnz = RSB_spgemm(nn,
+                   a_ro,  a_csp, a12_nnz, a12_sa, a12_za, a12_a,
+                   b_rsp, b_csp, b22_nnz, b22_sa, b22_za, b22_a,
+                   nnz, c12_sa, c_za + c_sa[0] + nnz, c_a + c_sa[0] + nnz,
+                   tmp);
+  c_sa[1] = c_sa[0] + nnz;
 
   /* C21 := A21 * B11 */
-  nsa += RSB_spgemm(nn,
-                    a_rsp, a_co,  a21_nnz, a21_sa, a21_za, a21_a,
-                    b_ro,  b_co,  b11_nnz, b11_sa, b11_za, b11_a,
-                    0, c_sa + nsa, c_za + c_nnz, c_a + c_nnz,
-                    tmp);
+  nnz = RSB_spgemm(nn,
+                   a_rsp, a_co,  a21_nnz, a21_sa, a21_za, a21_a,
+                   b_ro,  b_co,  b11_nnz, b11_sa, b11_za, b11_a,
+                   0, c21_sa, c_za + c_sa[1], c_a + c_sa[1],
+                   tmp);
   /* C21 += A22 * B21 */
-  nsa += RSB_spgemm(nn,
-                    a_rsp, a_csp, a22_nnz, a22_sa, a22_za, a22_a,
-                    b_rsp, b_co,  b21_nnz, b21_sa, b21_za, b21_a,
-                    c_nnz, c_sa + nsa, c_za + c_nnz, c_a + c_nnz,
-                    tmp);
-  // c_sa[2] = nnz;
-  // c_sa[5] = nsa;
+  nnz = RSB_spgemm(nn,
+                   a_rsp, a_csp, a22_nnz, a22_sa, a22_za, a22_a,
+                   b_rsp, b_co,  b21_nnz, b21_sa, b21_za, b21_a,
+                   nnz, c21_sa, c_za + c_sa[1] + nnz, c_a + c_sa[1] + nnz,
+                   tmp);
+  c_sa[2] = c_sa[1] + nnz;
 
   /* C22 := A21 * B12 */
-  nsa += RSB_spgemm(nn,
-                    a_rsp, a_co,  a21_nnz, a21_sa, a21_za, a21_a,
-                    b_ro,  b_csp, b12_nnz, b12_sa, b12_za, b12_a,
-                    0, c_sa + nsa, c_za + c_nnz, c_a + c_nnz,
-                    tmp);
+  nnz = RSB_spgemm(nn,
+                   a_rsp, a_co,  a21_nnz, a21_sa, a21_za, a21_a,
+                   b_ro,  b_csp, b12_nnz, b12_sa, b12_za, b12_a,
+                   0, c22_sa, c_za + c_sa[2], c_a + c_sa[2],
+                   tmp);
   /* C22 += A22 * B22 */
-  nsa += RSB_spgemm(nn,
-                    a_rsp, a_csp, a22_nnz, a22_sa, a22_za, a22_a,
-                    b_rsp, b_csp, b22_nnz, b22_sa, b22_za, b22_a,
-                    c_nnz, c_sa + nsa, c_za + c_nnz, c_a + c_nnz,
-                    tmp);
+  nnz = RSB_spgemm(nn,
+                   a_rsp, a_csp, a22_nnz, a22_sa, a22_za, a22_a,
+                   b_rsp, b_csp, b22_nnz, b22_sa, b22_za, b22_a,
+                   nnz, c22_sa, c_za + c_sa[2] + nnz, c_a + c_sa[2] + nnz,
+                   tmp);
 
-  // return nnz, nsa;
-
-  return 0;
+  return c_sa[2] + nnz;
 }
 
 /*----------------------------------------------------------------------------*/
