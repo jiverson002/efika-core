@@ -9,15 +9,15 @@
 #include "efika/core.h"
 
 #include "efika/core/rsb.h"
-#include "efika/data/bms_pos.h"
+//#include "efika/data/bms_pos.h"
 //#include "efika/data/example.h"
-//#include "efika/data/rcv1_10k.h"
+#include "efika/data/rcv1_10k.h"
 //#include "efika/data/sports_1x1.h"
 //#include "efika/data/youtube.h"
 
-#define DATASET         bms_pos
+//#define DATASET         bms_pos
 //#define DATASET         example
-//#define DATASET         rcv1_10k
+#define DATASET         rcv1_10k
 //#define DATASET         sports_1x1
 //#define DATASET         youtube
 #define xxdataset(d, v) d ## _ ## v

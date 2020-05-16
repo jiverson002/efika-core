@@ -25,8 +25,11 @@ class BLAS : public ::testing::Test {
       if (int err = EFIKA_Matrix_init(&B2_))
         throw std::runtime_error("Could not initialize matrix B2");
 
-      if (int err = EFIKA_Matrix_init(&Z_))
-        throw std::runtime_error("Could not initialize matrix Z");
+      if (int err = EFIKA_Matrix_init(&Z1_))
+        throw std::runtime_error("Could not initialize matrix Z1");
+
+      if (int err = EFIKA_Matrix_init(&Z2_))
+        throw std::runtime_error("Could not initialize matrix Z2");
 
       if (int err = EFIKA_Matrix_init(&C1_))
         throw std::runtime_error("Could not initialize matrix C1");
@@ -57,8 +60,11 @@ class BLAS : public ::testing::Test {
         throw std::runtime_error("Could not create inverted index B2");
       B2_.mord = EFIKA_MORD_CSR;
 
-      if (int err = EFIKA_Matrix_conv(&A_, &Z_, EFIKA_MORD_RSB))
-        throw std::runtime_error("Could not create inverted index Z");
+      if (int err = EFIKA_Matrix_conv(&A_, &Z1_, EFIKA_MORD_RSB))
+        throw std::runtime_error("Could not create recursive matrix Z1");
+
+      if (int err = EFIKA_Matrix_conv(&B2_, &Z2_, EFIKA_MORD_RSB))
+        throw std::runtime_error("Could not create recursive matrix Z2");
 
       C1_.nr = rcv1_10k_nr;
       C1_.nc = rcv1_10k_nc;
@@ -87,7 +93,7 @@ class BLAS : public ::testing::Test {
       if (!(C3_.sa && C3_.za && C3_.a))
         throw std::runtime_error("Could not allocate solution matrix C3");
 
-      for (EFIKA_ind_t i = 0; i < 10000000; i++) {
+      for (EFIKA_ind_t i = 0; i < 100000000; i++) {
         C3_.za[i] = (EFIKA_ind_t)-1;
         C3_.a[i]  = 0.0;
       }
@@ -104,7 +110,8 @@ class BLAS : public ::testing::Test {
 
     void TearDown() override {
       EFIKA_Matrix_free(&B2_);
-      EFIKA_Matrix_free(&Z_);
+      EFIKA_Matrix_free(&Z1_);
+      EFIKA_Matrix_free(&Z2_);
       EFIKA_Matrix_free(&C1_);
       EFIKA_Matrix_free(&C2_);
       EFIKA_Matrix_free(&C3_);
@@ -116,31 +123,14 @@ class BLAS : public ::testing::Test {
     EFIKA_Matrix A_;
     EFIKA_Matrix B1_;
     EFIKA_Matrix B2_;
-    EFIKA_Matrix Z_;
+    EFIKA_Matrix Z1_;
+    EFIKA_Matrix Z2_;
     EFIKA_Matrix C1_;
     EFIKA_Matrix C2_;
     EFIKA_Matrix C3_;
     EFIKA_ind_t *ih_;
     EFIKA_val_t *vh_;
 };
-
-/*----------------------------------------------------------------------------*/
-/*! http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2 */
-/*----------------------------------------------------------------------------*/
-static EFIKA_ind_t
-next_pow2(EFIKA_ind_t v)
-{
-  v--;
-  v |= v >> 1;
-  v |= v >> 2;
-  v |= v >> 4;
-  v |= v >> 8;
-  v |= v >> 16;
-#ifdef EFIKA_WITH_LONG
-  v |= v >> 32;
-#endif
-  return v + 1;
-}
 
 } // namespace
 
@@ -177,16 +167,18 @@ TEST_F(BLAS, SpGEMM_RSB_RSB_SANITY) {
     c_a[i]  = 0.0;
   }
 
+  ind_t c_nnz;
+
   efika_BLAS_spgemm_rsb_rsb(8,
                             8, NULL, a_za.data(), a_a.data(),
                             8, NULL, b_za.data(), b_a.data(),
-                            NULL, c_za.data(), c_a.data(),
+                            &c_nnz, NULL, c_za.data(), c_a.data(),
                             ih.data());
 
   efika_BLAS_spgemm_rsb_rsb(8,
                             8, NULL, a_za.data(), a_a.data(),
                             8, NULL, b_za.data(), b_a.data(),
-                            NULL, c_za.data(), c_a.data(),
+                            &c_nnz, NULL, c_za.data(), c_a.data(),
                             ih.data());
 
   for (EFIKA_ind_t i = 0; i < c_za.size(); i++) {
@@ -195,20 +187,23 @@ TEST_F(BLAS, SpGEMM_RSB_RSB_SANITY) {
   }
 }
 
-TEST_F(BLAS, SpGEMM_RSB_RSB) {
-  efika_BLAS_spgemm_rsb_rsb(RSB_size(Z_.nr, Z_.nc), Z_.nnz, Z_.sa, Z_.za, Z_.a,
-                            Z_.nnz, Z_.sa, Z_.za, Z_.a, C3_.sa, C3_.za, C3_.a,
-                            ih_);
-}
-
 TEST_F(BLAS, SpGEMM_CSR_CSC) {
   efika_BLAS_spgemm_csr_csc(A_.nr, B1_.nr, A_.ia, A_.ja, A_.a, B1_.ia, B1_.ja,
                             B1_.a, C1_.ia, C1_.ja, C1_.a, vh_);
+  ASSERT_EQ(91365552, C1_.ia[C1_.nr]);
 }
 
 TEST_F(BLAS, SpGEMM_CSR_CSR) {
   efika_BLAS_spgemm_csr_csr(A_.nr, A_.ia, A_.ja, A_.a, B2_.ia, B2_.ja, B2_.a,
                             C2_.ia, C2_.ja, C2_.a, vh_);
+  ASSERT_EQ(91365552, C2_.ia[C2_.nr]);
+}
+
+TEST_F(BLAS, SpGEMM_RSB_RSB) {
+  efika_BLAS_spgemm_rsb_rsb(RSB_size(Z1_.nr, Z1_.nc), Z1_.nnz, Z1_.sa, Z1_.za,
+                            Z1_.a, Z2_.nnz, Z2_.sa, Z2_.za, Z2_.a, &C3_.nnz,
+                            C3_.sa, C3_.za, C3_.a, ih_);
+  ASSERT_EQ(91365552, C3_.nnz);
 }
 
 TEST_F(BLAS, SpGEMM) {
@@ -221,7 +216,7 @@ TEST_F(BLAS, SpGEMM) {
   ASSERT_EQ(C1_.nr, C2_.nr);
   ASSERT_EQ(C1_.nc, C2_.nc);
   for (EFIKA_ind_t i = 0; i <= C1_.nr; i++)
-    ASSERT_EQ(C1_.ia[i], C2_.ia[i]) << "i = " << i;
+    ASSERT_EQ(C1_.ia[i], C2_.ia[i]);
   for (EFIKA_ind_t i = 1; i <= C1_.nr; i++)
     ASSERT_GE(C1_.ia[i], C1_.ia[i - 1]);
 
@@ -245,9 +240,9 @@ TEST_F(BLAS, SpGEMM) {
     const auto rnnz = C1_.ia[i + 1] - C1_.ia[i];
 
     for (EFIKA_ind_t j = 0; j < rnnz; j++)
-      ASSERT_EQ(kv1[j].first, kv2[j].first) << "(i,j) = (" << i << ", " << kv1[j].first << ")";
+      ASSERT_EQ(kv1[j].first, kv2[j].first);
 
     for (EFIKA_ind_t j = 0; j < rnnz; j++)
-      ASSERT_EQ(kv1[j].second, kv2[j].second) << "(i,j) = (" << i << ", " << kv1[j].first << ")";
+      ASSERT_EQ(kv1[j].second, kv2[j].second);
   }
 }

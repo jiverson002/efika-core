@@ -4,6 +4,9 @@
 
 #include <limits.h>
 #include <stdbool.h>
+#include <string.h>
+
+#include <stdio.h>
 
 #include "efika/core.h"
 
@@ -130,6 +133,70 @@ RSB_bsearch(
   }
 
   return l;
+}
+
+/*----------------------------------------------------------------------------*/
+/*! Convert a matrix stored in z-major order to one in row-major order */
+/*----------------------------------------------------------------------------*/
+__attribute__((unused)) static inline void
+RSB_rsbcsr(
+  ind_t const n,
+  ind_t const nnz,
+  ind_t const * const restrict za,
+  val_t const * const restrict arsb,
+  ind_t       * const restrict ia,
+  ind_t       * const restrict ja,
+  val_t       * const restrict acsr
+)
+{
+  memset(ia, 0, (n + 1) * sizeof(*ia));
+
+  for (ind_t i = 0; i < nnz; i++)
+    ia[RSB_row(za[i]) % n]++;
+
+  for (ind_t i = 0, p = 0; i <= n; i++) {
+    ind_t const t = ia[i];
+    ia[i] = p;
+    p += t;
+  }
+
+  for (ind_t i = 0; i < nnz; i++) {
+    ind_t const r = RSB_row(za[i]) % n;
+    ja[ia[r]]     = za[i];
+    acsr[ia[r]++] = arsb[i];
+  }
+}
+
+/*----------------------------------------------------------------------------*/
+/*! Convert a matrix stored in z-major order to one in column-major order */
+/*----------------------------------------------------------------------------*/
+__attribute__((unused)) static inline void
+RSB_rsbcsc(
+  ind_t const n,
+  ind_t const nnz,
+  ind_t const * const restrict za,
+  val_t const * const restrict arsb,
+  ind_t       * const restrict ia,
+  ind_t       * const restrict ja,
+  val_t       * const restrict acsc
+)
+{
+  memset(ia, 0, (n + 1) * sizeof(*ia));
+
+  for (ind_t i = 0; i < nnz; i++)
+    ia[RSB_col(za[i]) % n]++;
+
+  for (ind_t i = 0, p = 0; i <= n; i++) {
+    ind_t const t = ia[i];
+    ia[i] = p;
+    p += t;
+  }
+
+  for (ind_t i = 0; i < nnz; i++) {
+    ind_t const c = RSB_col(za[i]) % n;
+    ja[ia[c]]     = za[i];
+    acsc[ia[c]++] = arsb[i];
+  }
 }
 
 #ifdef __cplusplus
