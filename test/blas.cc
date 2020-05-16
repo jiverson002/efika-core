@@ -8,6 +8,7 @@
 #include "efika/core.h"
 
 #include "efika/core/blas.h"
+#include "efika/core/rsb.h"
 #include "efika/data/rcv1_10k.h"
 
 namespace {
@@ -79,12 +80,17 @@ class BLAS : public ::testing::Test {
 
       C3_.nr = rcv1_10k_nr;
       C3_.nc = rcv1_10k_nc;
-      C3_.sa = static_cast<EFIKA_ind_t*>(malloc(6 * C3_.nr * C3_.nr * sizeof(*C3_.ja)));
+      C3_.sa = static_cast<EFIKA_ind_t*>(malloc(RSB_sa_size(C3_.nr) * sizeof(*C3_.ja)));
       C3_.za = static_cast<EFIKA_ind_t*>(malloc(C3_.nr * C3_.nr * sizeof(*C3_.ja)));
       C3_.a  = static_cast<EFIKA_val_t*>(malloc(C3_.nr * C3_.nr * sizeof(*C3_.a)));
 
       if (!(C3_.sa && C3_.za && C3_.a))
         throw std::runtime_error("Could not allocate solution matrix C3");
+
+      for (EFIKA_ind_t i = 0; i < 10000000; i++) {
+        C3_.za[i] = (EFIKA_ind_t)-1;
+        C3_.a[i]  = 0.0;
+      }
 
       ih_ = static_cast<EFIKA_ind_t*>(calloc((rcv1_10k_nr + 1), sizeof(*ih_)));
       if (!ih_)
@@ -138,7 +144,7 @@ next_pow2(EFIKA_ind_t v)
 
 } // namespace
 
-TEST_F(BLAS, SpGEMM_RSB) {
+TEST_F(BLAS, SpGEMM_RSB_RSB_SANITY) {
   std::array<EFIKA_ind_t, 8> a_za {
     0x00000000 /* r0c0 */, 0x00010001 /* r1c1 */, 0x00020001 /* r2c1 */,
     0x00030000 /* r3c0 */, 0x00020003 /* r2c3 */, 0x00030003 /* r3c3 */,
@@ -189,17 +195,28 @@ TEST_F(BLAS, SpGEMM_RSB) {
   }
 }
 
+TEST_F(BLAS, SpGEMM_RSB_RSB) {
+  efika_BLAS_spgemm_rsb_rsb(RSB_size(Z_.nr, Z_.nc), Z_.nnz, Z_.sa, Z_.za, Z_.a,
+                            Z_.nnz, Z_.sa, Z_.za, Z_.a, C3_.sa, C3_.za, C3_.a,
+                            ih_);
+}
+
+TEST_F(BLAS, SpGEMM_CSR_CSC) {
+  efika_BLAS_spgemm_csr_csc(A_.nr, B1_.nr, A_.ia, A_.ja, A_.a, B1_.ia, B1_.ja,
+                            B1_.a, C1_.ia, C1_.ja, C1_.a, vh_);
+}
+
+TEST_F(BLAS, SpGEMM_CSR_CSR) {
+  efika_BLAS_spgemm_csr_csr(A_.nr, A_.ia, A_.ja, A_.a, B2_.ia, B2_.ja, B2_.a,
+                            C2_.ia, C2_.ja, C2_.a, vh_);
+}
+
 TEST_F(BLAS, SpGEMM) {
   efika_BLAS_spgemm_csr_csc(A_.nr, B1_.nr, A_.ia, A_.ja, A_.a, B1_.ia, B1_.ja,
                             B1_.a, C1_.ia, C1_.ja, C1_.a, vh_);
 
   efika_BLAS_spgemm_csr_csr(A_.nr, A_.ia, A_.ja, A_.a, B2_.ia, B2_.ja, B2_.a,
                             C2_.ia, C2_.ja, C2_.a, vh_);
-
-  //const auto n = next_pow2(std::max(Z_.nr, Z_.nc));
-
-  //efika_BLAS_spgemm_rsb_rsb(n, Z_.nnz, Z_.sa, Z_.za, Z_.a, Z_.nnz, Z_.sa,
-  //                          Z_.za, Z_.a, C3_.sa, C3_.za, C3_.a, ih_);
 
   ASSERT_EQ(C1_.nr, C2_.nr);
   ASSERT_EQ(C1_.nc, C2_.nc);

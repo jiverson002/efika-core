@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <stdio.h>
+
 #include "efika/core/blas.h"
 #include "efika/core/rsb.h"
 
@@ -123,7 +125,7 @@ RSB_rsbcsr(
   memset(ia, 0, (n + 1) * sizeof(*ia));
 
   for (ind_t i = 0; i < nnz; i++)
-    ia[RSB_row(za[i])]++;
+    ia[RSB_row(za[i]) % n]++;
 
   for (ind_t i = 0, p = 0; i <= n; i++) {
     ind_t const t = ia[i];
@@ -132,7 +134,7 @@ RSB_rsbcsr(
   }
 
   for (ind_t i = 0; i < nnz; i++) {
-    ind_t const r = RSB_row(za[i]);
+    ind_t const r = RSB_row(za[i]) % n;
     ja[ia[r]]     = za[i];
     acsr[ia[r]++] = arsb[i];
   }
@@ -155,7 +157,7 @@ RSB_rsbcsc(
   memset(ia, 0, (n + 1) * sizeof(*ia));
 
   for (ind_t i = 0; i < nnz; i++)
-    ia[RSB_col(za[i])]++;
+    ia[RSB_col(za[i]) % n]++;
 
   for (ind_t i = 0, p = 0; i <= n; i++) {
     ind_t const t = ia[i];
@@ -164,7 +166,7 @@ RSB_rsbcsc(
   }
 
   for (ind_t i = 0; i < nnz; i++) {
-    ind_t const c = RSB_col(za[i]);
+    ind_t const c = RSB_col(za[i]) % n;
     ja[ia[c]]     = za[i];
     acsc[ia[c]++] = arsb[i];
   }
@@ -345,6 +347,7 @@ RSB_spgemm(
   /* temporary split values */
   ind_t a_sp[3];
   ind_t b_sp[3];
+  ind_t c_sp[3];
 
   /* compute quadrant dimensions */
   ind_t const nn = n / 2;
@@ -354,13 +357,6 @@ RSB_spgemm(
   ind_t const a_csp = a_co + nn;
   ind_t const b_rsp = b_ro + nn;
   ind_t const b_csp = b_co + nn;
-
-  /* compute number of splits per quadrant */
-  ind_t const nsa = RSB_sa_size(nn);
-  ind_t const sa11 = 3;
-  ind_t const sa12 = sa11 + nsa;
-  ind_t const sa21 = sa12 + nsa;
-  ind_t const sa22 = sa21 + nsa;
 
   /* determine if splits are stored implicitly or explicitly */
   if (RSB_is_split(n)) {
@@ -377,6 +373,9 @@ RSB_spgemm(
     b_sp[2] = b_sp[1] + RSB_bsearch(0, b_csp, b_za + b_sp[1], b_nnz - b_sp[1]);
   }
 
+  /* compute size of book-keeping data structure */
+  ind_t const nsa = RSB_sa_size(nn);
+
   /* compute /A/ quadrant # non-zeros */
   ind_t const a11_nnz = a_sp[0];
   ind_t const a12_nnz = a_sp[1] - a_sp[0];
@@ -390,10 +389,10 @@ RSB_spgemm(
   ind_t const b22_nnz = b_nnz   - b_sp[2];
 
   /* compute /A/ quadrant arrays */
-  ind_t const * const a11_sa = a_sa + sa11;
-  ind_t const * const a12_sa = a_sa + sa12;
-  ind_t const * const a21_sa = a_sa + sa21;
-  ind_t const * const a22_sa = a_sa + sa22;
+  ind_t const * const a11_sa = a_sa + 3;
+  ind_t const * const a12_sa = a11_sa + nsa;
+  ind_t const * const a21_sa = a12_sa + nsa;
+  ind_t const * const a22_sa = a21_sa + nsa;
   ind_t const * const a11_za = a_za;
   ind_t const * const a12_za = a_za + a_sp[0];
   ind_t const * const a21_za = a_za + a_sp[1];
@@ -404,10 +403,10 @@ RSB_spgemm(
   val_t const * const a22_a  = a_a + a_sp[2];
 
   /* compute /B/ quadrant arrays */
-  ind_t const * const b11_sa = b_sa + sa11;
-  ind_t const * const b12_sa = b_sa + sa12;
-  ind_t const * const b21_sa = b_sa + sa21;
-  ind_t const * const b22_sa = b_sa + sa22;
+  ind_t const * const b11_sa = b_sa + 3;
+  ind_t const * const b12_sa = b11_sa + nsa;
+  ind_t const * const b21_sa = b12_sa + nsa;
+  ind_t const * const b22_sa = b21_sa + nsa;
   ind_t const * const b11_za = b_za;
   ind_t const * const b12_za = b_za + b_sp[0];
   ind_t const * const b21_za = b_za + b_sp[1];
@@ -418,10 +417,10 @@ RSB_spgemm(
   val_t const * const b22_a  = b_a + b_sp[2];
 
   /* compute /C/ quadrant arrays */
-  ind_t * const c11_sa = c_sa + sa11;
-  ind_t * const c12_sa = c_sa + sa12;
-  ind_t * const c21_sa = c_sa + sa21;
-  ind_t * const c22_sa = c_sa + sa22;
+  ind_t * const c11_sa = c_sa + 3;
+  ind_t * const c12_sa = c11_sa + nsa;
+  ind_t * const c21_sa = c12_sa + nsa;
+  ind_t * const c22_sa = c21_sa + nsa;
 
   /* C11 := A11 * B11 */
   ind_t nnz = RSB_spgemm(nn,
@@ -435,50 +434,54 @@ RSB_spgemm(
                    b_rsp, b_co,  b21_nnz, b21_sa, b21_za, b21_a,
                    nnz, c11_sa, c_za + nnz, c_a + nnz,
                    tmp);
-  c_sa[0] = nnz;
+  c_sp[0] = nnz;
 
   /* C12 := A11 * B12 */
   nnz = RSB_spgemm(nn,
                    a_ro,  a_co,  a11_nnz, a11_sa, a11_za, a11_a,
                    b_ro,  b_csp, b12_nnz, b12_sa, b12_za, b12_a,
-                   0, c12_sa, c_za + c_sa[0], c_a + c_sa[0],
+                   0, c12_sa, c_za + c_sp[0], c_a + c_sp[0],
                    tmp);
   /* C12 += A12 * B22 */
   nnz = RSB_spgemm(nn,
                    a_ro,  a_csp, a12_nnz, a12_sa, a12_za, a12_a,
                    b_rsp, b_csp, b22_nnz, b22_sa, b22_za, b22_a,
-                   nnz, c12_sa, c_za + c_sa[0] + nnz, c_a + c_sa[0] + nnz,
+                   nnz, c12_sa, c_za + c_sp[0] + nnz, c_a + c_sp[0] + nnz,
                    tmp);
-  c_sa[1] = c_sa[0] + nnz;
+  c_sp[1] = c_sp[0] + nnz;
 
   /* C21 := A21 * B11 */
   nnz = RSB_spgemm(nn,
                    a_rsp, a_co,  a21_nnz, a21_sa, a21_za, a21_a,
                    b_ro,  b_co,  b11_nnz, b11_sa, b11_za, b11_a,
-                   0, c21_sa, c_za + c_sa[1], c_a + c_sa[1],
+                   0, c21_sa, c_za + c_sp[1], c_a + c_sp[1],
                    tmp);
   /* C21 += A22 * B21 */
   nnz = RSB_spgemm(nn,
                    a_rsp, a_csp, a22_nnz, a22_sa, a22_za, a22_a,
                    b_rsp, b_co,  b21_nnz, b21_sa, b21_za, b21_a,
-                   nnz, c21_sa, c_za + c_sa[1] + nnz, c_a + c_sa[1] + nnz,
+                   nnz, c21_sa, c_za + c_sp[1] + nnz, c_a + c_sp[1] + nnz,
                    tmp);
-  c_sa[2] = c_sa[1] + nnz;
+  c_sp[2] = c_sp[1] + nnz;
 
   /* C22 := A21 * B12 */
   nnz = RSB_spgemm(nn,
                    a_rsp, a_co,  a21_nnz, a21_sa, a21_za, a21_a,
                    b_ro,  b_csp, b12_nnz, b12_sa, b12_za, b12_a,
-                   0, c22_sa, c_za + c_sa[2], c_a + c_sa[2],
+                   0, c22_sa, c_za + c_sp[2], c_a + c_sp[2],
                    tmp);
   /* C22 += A22 * B22 */
   nnz = RSB_spgemm(nn,
                    a_rsp, a_csp, a22_nnz, a22_sa, a22_za, a22_a,
                    b_rsp, b_csp, b22_nnz, b22_sa, b22_za, b22_a,
-                   nnz, c22_sa, c_za + c_sa[2] + nnz, c_a + c_sa[2] + nnz,
+                   nnz, c22_sa, c_za + c_sp[2] + nnz, c_a + c_sp[2] + nnz,
                    tmp);
 
-  return c_sa[2] + nnz;
+  if (RSB_is_split(n)) {
+    c_sa[0] = c_sp[0]; c_sa[1] = c_sp[1]; c_sa[2] = c_sp[2];
+  }
+
+  return c_sp[2] + nnz;
 }
 
 /*----------------------------------------------------------------------------*/
