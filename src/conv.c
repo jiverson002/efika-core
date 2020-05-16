@@ -25,7 +25,7 @@ struct kv {
 /* helper function for qsort */
 /*----------------------------------------------------------------------------*/
 static int
-kv_cmp(void const * const ap, void const * const bp)
+kv_cmp_z(void const * const ap, void const * const bp)
 {
   struct kv const * const a = (struct kv const*)ap;
   struct kv const * const b = (struct kv const*)bp;
@@ -38,6 +38,21 @@ kv_cmp(void const * const ap, void const * const bp)
     return a->k.r < b->k.r ? -1 : 1;
 
 #undef less_msb
+}
+
+/*----------------------------------------------------------------------------*/
+/* helper function for qsort */
+/*----------------------------------------------------------------------------*/
+static int
+kv_cmp_rc(void const * const ap, void const * const bp)
+{
+  struct kv const * const a = (struct kv const*)ap;
+  struct kv const * const b = (struct kv const*)bp;
+
+  return a->k.r < b->k.r ? -1
+       : a->k.r > b->k.r ?  1
+       : a->k.c < b->k.c ? -1
+       : 1;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -151,6 +166,77 @@ RSB_node_split(
 /*----------------------------------------------------------------------------*/
 /*! */
 /*----------------------------------------------------------------------------*/
+static void
+RSB_leaf_walk(
+  ind_t const ro,
+  ind_t const co,
+  ind_t const nnz,
+  ind_t     const * const restrict za,
+  val_t     const * const restrict a,
+  struct kv       * const restrict kv
+)
+{
+  for (ind_t k = 0; k < nnz; k++) {
+    /* compensate for compressed leaf indexing */
+    kv[k].k.r = ro + RSB_row(za[k]);
+    kv[k].k.c = co + RSB_col(za[k]);
+    if (a)
+      kv[k].v = a[k];
+  }
+}
+
+/*----------------------------------------------------------------------------*/
+/*! */
+/*----------------------------------------------------------------------------*/
+static void
+RSB_node_walk(
+  ind_t const ro,
+  ind_t const co,
+  ind_t const n,
+  ind_t const nnz,
+  ind_t     const * const restrict sa,
+  ind_t     const * const restrict za,
+  val_t     const * const restrict a,
+  struct kv       * const restrict kv
+)
+{
+  /* don't explicitly split node if dimensions are small enough */
+  if (!RSB_is_split(n)) {
+    RSB_leaf_walk(ro, co, nnz, za, a, kv);
+    return;
+  }
+
+  /* compute new dimension */
+  ind_t const nn = n / 2;
+
+  /* compute quadrant # non-zeros */
+  ind_t const nnz0 = sa[0];
+  ind_t const nnz1 = sa[1] - sa[0];
+  ind_t const nnz2 = sa[2] - sa[1];
+  ind_t const nnz3 = nnz   - sa[2];
+
+  /* compute number of splits per quadrant */
+  ind_t const nsa = RSB_sa_size(nn);
+
+  /* compute quadrant split offsets */
+  ind_t const * const sa0 = sa + 3;
+  ind_t const * const sa1 = sa0 + nsa;
+  ind_t const * const sa2 = sa1 + nsa;
+  ind_t const * const sa3 = sa2 + nsa;
+
+  /* recursively walk each quadrant */
+  RSB_node_walk(ro, co, nn, nnz0, sa0, za, a, kv);
+  RSB_node_walk(ro, co + nn, nn, nnz1, sa1, za + sa[0], a ? a + sa[0] : NULL,
+                kv + sa[0]);
+  RSB_node_walk(ro + nn, co, nn, nnz2, sa2, za + sa[1], a ? a + sa[1] : NULL,
+                kv + sa[1]);
+  RSB_node_walk(ro + nn, co + nn, nn, nnz3, sa3, za + sa[2],
+                a ? a + sa[2] : NULL, kv + sa[2]);
+}
+
+/*----------------------------------------------------------------------------*/
+/*! */
+/*----------------------------------------------------------------------------*/
 static int
 csrcsc(Matrix const * const A, Matrix * const B)
 {
@@ -231,7 +317,7 @@ csrrsb(Matrix const * const A, Matrix * const B)
   }
 
   /* sort non-zeros by z-index */
-  qsort(kv, a_nnz, sizeof(*kv), kv_cmp);
+  qsort(kv, a_nnz, sizeof(*kv), kv_cmp_z);
 
   /* dimensions need to be powers of two for proper binary searches */
   ind_t const n = RSB_size(a_nr, a_nc);
@@ -263,6 +349,75 @@ csrrsb(Matrix const * const A, Matrix * const B)
 }
 
 /*----------------------------------------------------------------------------*/
+/*! */
+/*----------------------------------------------------------------------------*/
+static int
+rsbcsr(Matrix const * const A, Matrix * const B)
+{
+  /* ...garbage collected function... */
+  GC_func_init();
+
+  /* unpack /A/ */
+  ind_t const a_nr  = A->nr;
+  ind_t const a_nc  = A->nc;
+  ind_t const a_nnz = A->nnz;
+  ind_t const * const a_sa = A->sa;
+  ind_t const * const a_za = A->za;
+  val_t const * const a_a  = A->a;
+
+  if (!a_za)
+    return -1;
+
+  /* allocate temporary storage */
+  struct kv * const kv = GC_malloc(a_nnz * sizeof(*kv));
+
+  /* dimensions need to be powers of two for proper binary searches */
+  ind_t const n = RSB_size(a_nr, a_nc);
+
+  /* populate key-value of each non-zero */
+  RSB_node_walk(0, 0, n, a_nnz, a_sa, a_za, a_a, kv);
+
+  /* sort non-zeros by row then column */
+  qsort(kv, a_nnz, sizeof(*kv), kv_cmp_rc);
+
+  /* allocate new storage */
+  ind_t * const b_ia = GC_malloc((a_nr + 1) * sizeof(*b_ia));
+  ind_t * const b_ja = GC_malloc(a_nnz * sizeof(*b_ja));
+  val_t * b_a = NULL;
+  if (a_a)
+    b_a = GC_malloc(a_nnz * sizeof(*b_a));
+
+  /* copy memory */
+  b_ia[0] = 0;
+  for (ind_t i = 0, k = 0; i < a_nnz;) {
+    ind_t const r = kv[i].k.r;
+
+    for (; kv[i].k.r == r; i++) {
+      if (a_a)
+        b_a[k]  = kv[i].v;
+      b_ja[k++] = kv[i].k.c;
+    }
+
+    b_ia[r + 1] = k;
+  }
+
+  /* record relevant info in /B/ */
+  B->sort = NONE;
+  B->mord = MORD_CSR;
+  B->nr   = a_nr;
+  B->nc   = a_nc;
+  B->nnz  = a_nnz;
+  B->ia   = b_ia;
+  B->ja   = b_ja;
+  B->a    = b_a;
+
+  /* free temporary storage */
+  GC_free(kv);
+
+  return 0;
+}
+
+/*----------------------------------------------------------------------------*/
 /*! Function to convert a matrix from one storage format to another. */
 /*----------------------------------------------------------------------------*/
 EFIKA_CORE_EXPORT int
@@ -285,6 +440,9 @@ Matrix_conv(Matrix const * const A, Matrix * const B, int const which)
 
     case combine(MORD_CSR, MORD_RSB):
     return csrrsb(A, B);
+
+    case combine(MORD_RSB, MORD_CSR):
+    return rsbcsr(A, B);
 
     default:
     return -1;
