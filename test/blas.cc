@@ -9,7 +9,24 @@
 
 #include "efika/core/blas.h"
 #include "efika/core/rsb.h"
-#include "efika/data/rcv1_10k.h"
+//#include "efika/data/bms_pos.h"
+//#include "efika/data/example.h"
+#include "efika/data/groceries.h"
+//#include "efika/data/rcv1_10k.h"
+//#include "efika/data/sports_1x1.h"
+//#include "efika/data/youtube.h"
+#include "efika/data/youtube_50k.h"
+
+//#define DATASET         bms_pos
+//#define DATASET         example
+//#define DATASET         groceries
+//#define DATASET         rcv1_10k
+//#define DATASET         sports_1x1
+//#define DATASET         youtube
+#define DATASET         youtube_50k
+#define xxdataset(d, v) d ## _ ## v
+#define xdataset(d, v)  xxdataset(d, v)
+#define dataset(v)      xdataset(DATASET, v)
 
 namespace {
 
@@ -44,20 +61,20 @@ class BLAS : public ::testing::Test {
         throw std::runtime_error("Could not initialize matrix C4");
 
       A_.mord = EFIKA_MORD_CSR;
-      A_.nr   = rcv1_10k_nr;
-      A_.nc   = rcv1_10k_nc;
-      A_.nnz  = rcv1_10k_nnz;
-      A_.ia   = rcv1_10k_ia;
-      A_.ja   = rcv1_10k_ja;
-      A_.a    = rcv1_10k_a;
+      A_.nr   = dataset(nr);
+      A_.nc   = dataset(nc);
+      A_.nnz  = dataset(nnz);
+      A_.ia   = dataset(ia);
+      A_.ja   = dataset(ja);
+      A_.a    = dataset(a);
 
       B1_.mord = EFIKA_MORD_CSC;
-      B1_.nr   = rcv1_10k_nr;
-      B1_.nc   = rcv1_10k_nc;
-      B1_.nnz  = rcv1_10k_nnz;
-      B1_.ia   = rcv1_10k_ia;
-      B1_.ja   = rcv1_10k_ja;
-      B1_.a    = rcv1_10k_a;
+      B1_.nr   = A_.nr;
+      B1_.nc   = A_.nc;
+      B1_.nnz  = A_.nnz;
+      B1_.ia   = A_.ia;
+      B1_.ja   = A_.ja;
+      B1_.a    = A_.a;
 
       if (int err = EFIKA_Matrix_conv(&A_, &B2_, EFIKA_MORD_CSC))
         throw std::runtime_error("Could not create inverted index B2");
@@ -69,8 +86,8 @@ class BLAS : public ::testing::Test {
       if (int err = EFIKA_Matrix_conv(&B2_, &Z2_, EFIKA_MORD_RSB))
         throw std::runtime_error("Could not create recursive matrix Z2");
 
-      C1_.nr = rcv1_10k_nr;
-      C1_.nc = rcv1_10k_nr;
+      C1_.nr = A_.nr;
+      C1_.nc = A_.nr;
       C1_.ia = static_cast<EFIKA_ind_t*>(malloc((C1_.nr + 1) * sizeof(*C1_.ia)));
       C1_.ja = static_cast<EFIKA_ind_t*>(malloc(C1_.nr * C1_.nr * sizeof(*C1_.ja)));
       C1_.a  = static_cast<EFIKA_val_t*>(malloc(C1_.nr * C1_.nr * sizeof(*C1_.a)));
@@ -78,8 +95,8 @@ class BLAS : public ::testing::Test {
       if (!(C1_.ia && C1_.ja && C1_.a))
         throw std::runtime_error("Could not allocate solution matrix C1");
 
-      C2_.nr = rcv1_10k_nr;
-      C2_.nc = rcv1_10k_nr;
+      C2_.nr = A_.nr;
+      C2_.nc = A_.nr;
       C2_.ia = static_cast<EFIKA_ind_t*>(malloc((C2_.nr + 1) * sizeof(*C2_.ia)));
       C2_.ja = static_cast<EFIKA_ind_t*>(malloc(C2_.nr * C2_.nr * sizeof(*C2_.ja)));
       C2_.a  = static_cast<EFIKA_val_t*>(malloc(C2_.nr * C2_.nr * sizeof(*C2_.a)));
@@ -87,8 +104,8 @@ class BLAS : public ::testing::Test {
       if (!(C2_.ia && C2_.ja && C2_.a))
         throw std::runtime_error("Could not allocate solution matrix C2");
 
-      C3_.nr = rcv1_10k_nr;
-      C3_.nc = rcv1_10k_nr;
+      C3_.nr = A_.nr;
+      C3_.nc = A_.nr;
       C3_.sa = static_cast<EFIKA_ind_t*>(malloc(RSB_sa_size(C3_.nr) * sizeof(*C3_.ja)));
       C3_.za = static_cast<EFIKA_ind_t*>(malloc(C3_.nr * C3_.nr * sizeof(*C3_.ja)));
       C3_.a  = static_cast<EFIKA_val_t*>(malloc(C3_.nr * C3_.nr * sizeof(*C3_.a)));
@@ -96,16 +113,18 @@ class BLAS : public ::testing::Test {
       if (!(C3_.sa && C3_.za && C3_.a))
         throw std::runtime_error("Could not allocate solution matrix C3");
 
+
       for (EFIKA_ind_t i = 0; i < 100000000; i++) {
+      //for (EFIKA_ind_t i = 0; i < 3000000000; i++) {
         C3_.za[i] = (EFIKA_ind_t)-1;
         C3_.a[i]  = 0.0;
       }
 
-      ih_ = static_cast<EFIKA_ind_t*>(calloc((RSB_size(rcv1_10k_nr, rcv1_10k_nc) + 1), sizeof(*ih_)));
+      ih_ = static_cast<EFIKA_ind_t*>(calloc((RSB_size(A_.nr, A_.nc) + 1), sizeof(*ih_)));
       if (!ih_)
         throw std::runtime_error("Could not allocate scratch space");
 
-      vh_ = static_cast<EFIKA_val_t*>(calloc(std::max(rcv1_10k_nr, rcv1_10k_nc),
+      vh_ = static_cast<EFIKA_val_t*>(calloc(std::max(A_.nr, A_.nc),
                                       sizeof(*vh_)));
       if (!vh_)
         throw std::runtime_error("Could not allocate scratch space");

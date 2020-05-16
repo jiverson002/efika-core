@@ -113,7 +113,7 @@ RSB_in_cache(ind_t const a_nnz, ind_t const b_nnz)
 {
   // FIXME: hard-code
   //return (a_nnz + b_nnz) <= 4000;
-  return (a_nnz + b_nnz) <= 2000000;
+  return (a_nnz + b_nnz) <= 5000000;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -313,11 +313,11 @@ RSB_spgemm_cache(
   //static ind_t icache[4002];
   //static val_t vcache[4002];
   static ind_t * icache = NULL;
-  if (!icache) icache = malloc(2000002 * sizeof(ind_t));
+  if (!icache) icache = malloc(5000002 * sizeof(ind_t));
   static val_t * vcache = NULL;
-  if (!vcache) vcache = malloc(2000002 * sizeof(val_t));
+  if (!vcache) vcache = malloc(5000002 * sizeof(val_t));
   static val_t * spa = NULL;
-  if (!spa) spa = calloc(2000002, sizeof(val_t));
+  if (!spa) spa = calloc(5000002, sizeof(val_t));
 
   ind_t * const a_za_cache = icache;
   val_t * const a_a_cache  = vcache;
