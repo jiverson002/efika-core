@@ -40,6 +40,9 @@ class BLAS : public ::testing::Test {
       if (int err = EFIKA_Matrix_init(&C3_))
         throw std::runtime_error("Could not initialize matrix C3");
 
+      if (int err = EFIKA_Matrix_init(&C4_))
+        throw std::runtime_error("Could not initialize matrix C4");
+
       A_.mord = EFIKA_MORD_CSR;
       A_.nr   = rcv1_10k_nr;
       A_.nc   = rcv1_10k_nc;
@@ -67,7 +70,7 @@ class BLAS : public ::testing::Test {
         throw std::runtime_error("Could not create recursive matrix Z2");
 
       C1_.nr = rcv1_10k_nr;
-      C1_.nc = rcv1_10k_nc;
+      C1_.nc = rcv1_10k_nr;
       C1_.ia = static_cast<EFIKA_ind_t*>(malloc((C1_.nr + 1) * sizeof(*C1_.ia)));
       C1_.ja = static_cast<EFIKA_ind_t*>(malloc(C1_.nr * C1_.nr * sizeof(*C1_.ja)));
       C1_.a  = static_cast<EFIKA_val_t*>(malloc(C1_.nr * C1_.nr * sizeof(*C1_.a)));
@@ -76,7 +79,7 @@ class BLAS : public ::testing::Test {
         throw std::runtime_error("Could not allocate solution matrix C1");
 
       C2_.nr = rcv1_10k_nr;
-      C2_.nc = rcv1_10k_nc;
+      C2_.nc = rcv1_10k_nr;
       C2_.ia = static_cast<EFIKA_ind_t*>(malloc((C2_.nr + 1) * sizeof(*C2_.ia)));
       C2_.ja = static_cast<EFIKA_ind_t*>(malloc(C2_.nr * C2_.nr * sizeof(*C2_.ja)));
       C2_.a  = static_cast<EFIKA_val_t*>(malloc(C2_.nr * C2_.nr * sizeof(*C2_.a)));
@@ -85,7 +88,7 @@ class BLAS : public ::testing::Test {
         throw std::runtime_error("Could not allocate solution matrix C2");
 
       C3_.nr = rcv1_10k_nr;
-      C3_.nc = rcv1_10k_nc;
+      C3_.nc = rcv1_10k_nr;
       C3_.sa = static_cast<EFIKA_ind_t*>(malloc(RSB_sa_size(C3_.nr) * sizeof(*C3_.ja)));
       C3_.za = static_cast<EFIKA_ind_t*>(malloc(C3_.nr * C3_.nr * sizeof(*C3_.ja)));
       C3_.a  = static_cast<EFIKA_val_t*>(malloc(C3_.nr * C3_.nr * sizeof(*C3_.a)));
@@ -98,7 +101,7 @@ class BLAS : public ::testing::Test {
         C3_.a[i]  = 0.0;
       }
 
-      ih_ = static_cast<EFIKA_ind_t*>(calloc((rcv1_10k_nr + 1), sizeof(*ih_)));
+      ih_ = static_cast<EFIKA_ind_t*>(calloc((RSB_size(rcv1_10k_nr, rcv1_10k_nc) + 1), sizeof(*ih_)));
       if (!ih_)
         throw std::runtime_error("Could not allocate scratch space");
 
@@ -115,6 +118,7 @@ class BLAS : public ::testing::Test {
       EFIKA_Matrix_free(&C1_);
       EFIKA_Matrix_free(&C2_);
       EFIKA_Matrix_free(&C3_);
+      EFIKA_Matrix_free(&C4_);
       free(ih_);
       free(vh_);
     }
@@ -128,13 +132,14 @@ class BLAS : public ::testing::Test {
     EFIKA_Matrix C1_;
     EFIKA_Matrix C2_;
     EFIKA_Matrix C3_;
+    EFIKA_Matrix C4_;
     EFIKA_ind_t *ih_;
     EFIKA_val_t *vh_;
 };
 
 } // namespace
 
-TEST_F(BLAS, SpGEMM_RSB_RSB_SANITY) {
+TEST_F(BLAS, SpGEMM_RSB_RSB_CANARY) {
   std::array<EFIKA_ind_t, 8> a_za {
     0x00000000 /* r0c0 */, 0x00010001 /* r1c1 */, 0x00020001 /* r2c1 */,
     0x00030000 /* r3c0 */, 0x00020003 /* r2c3 */, 0x00030003 /* r3c3 */,
@@ -187,25 +192,6 @@ TEST_F(BLAS, SpGEMM_RSB_RSB_SANITY) {
   }
 }
 
-TEST_F(BLAS, SpGEMM_CSR_CSC) {
-  efika_BLAS_spgemm_csr_csc(A_.nr, B1_.nr, A_.ia, A_.ja, A_.a, B1_.ia, B1_.ja,
-                            B1_.a, C1_.ia, C1_.ja, C1_.a, vh_);
-  ASSERT_EQ(91365552, C1_.ia[C1_.nr]);
-}
-
-TEST_F(BLAS, SpGEMM_CSR_CSR) {
-  efika_BLAS_spgemm_csr_csr(A_.nr, A_.ia, A_.ja, A_.a, B2_.ia, B2_.ja, B2_.a,
-                            C2_.ia, C2_.ja, C2_.a, vh_);
-  ASSERT_EQ(91365552, C2_.ia[C2_.nr]);
-}
-
-TEST_F(BLAS, SpGEMM_RSB_RSB) {
-  efika_BLAS_spgemm_rsb_rsb(RSB_size(Z1_.nr, Z1_.nc), Z1_.nnz, Z1_.sa, Z1_.za,
-                            Z1_.a, Z2_.nnz, Z2_.sa, Z2_.za, Z2_.a, &C3_.nnz,
-                            C3_.sa, C3_.za, C3_.a, ih_);
-  ASSERT_EQ(91365552, C3_.nnz);
-}
-
 TEST_F(BLAS, SpGEMM) {
   efika_BLAS_spgemm_csr_csc(A_.nr, B1_.nr, A_.ia, A_.ja, A_.a, B1_.ia, B1_.ja,
                             B1_.a, C1_.ia, C1_.ja, C1_.a, vh_);
@@ -213,22 +199,33 @@ TEST_F(BLAS, SpGEMM) {
   efika_BLAS_spgemm_csr_csr(A_.nr, A_.ia, A_.ja, A_.a, B2_.ia, B2_.ja, B2_.a,
                             C2_.ia, C2_.ja, C2_.a, vh_);
 
+  efika_BLAS_spgemm_rsb_rsb(RSB_size(Z1_.nr, Z1_.nc), Z1_.nnz, Z1_.sa, Z1_.za,
+                            Z1_.a, Z2_.nnz, Z2_.sa, Z2_.za, Z2_.a, &C3_.nnz,
+                            C3_.sa, C3_.za, C3_.a, ih_);
+
+  C3_.mord = EFIKA_MORD_RSB;
+  if (int err = EFIKA_Matrix_conv(&C3_, &C4_, EFIKA_MORD_CSR))
+    throw std::runtime_error("Could not convert C3 to C4");
+
   ASSERT_EQ(C1_.nr, C2_.nr);
   ASSERT_EQ(C1_.nc, C2_.nc);
-  for (EFIKA_ind_t i = 0; i <= C1_.nr; i++)
+  ASSERT_EQ(C1_.nr, C4_.nr);
+  ASSERT_EQ(C1_.nc, C4_.nc);
+  for (EFIKA_ind_t i = 0; i <= C1_.nr; i++) {
     ASSERT_EQ(C1_.ia[i], C2_.ia[i]);
-  for (EFIKA_ind_t i = 1; i <= C1_.nr; i++)
-    ASSERT_GE(C1_.ia[i], C1_.ia[i - 1]);
+    ASSERT_EQ(C1_.ia[i], C4_.ia[i]);
+  }
 
   for (EFIKA_ind_t i = 0; i < C1_.nr; i++) {
     std::vector<std::pair<EFIKA_ind_t, EFIKA_val_t>> kv1;
     std::vector<std::pair<EFIKA_ind_t, EFIKA_val_t>> kv2;
+    std::vector<std::pair<EFIKA_ind_t, EFIKA_val_t>> kv4;
 
-    for (EFIKA_ind_t j = C1_.ia[i]; j < C1_.ia[i + 1]; j++)
+    for (EFIKA_ind_t j = C1_.ia[i]; j < C1_.ia[i + 1]; j++) {
       kv1.push_back({ C1_.ja[j], C1_.a[j] });
-
-    for (EFIKA_ind_t j = C2_.ia[i]; j < C2_.ia[i + 1]; j++)
       kv2.push_back({ C2_.ja[j], C2_.a[j] });
+      kv4.push_back({ C4_.ja[j], C4_.a[j] });
+    }
 
     sort(kv1.begin(), kv1.end(), [](const auto & a, const auto & b) -> bool {
       return a.first > b.first;
@@ -236,13 +233,20 @@ TEST_F(BLAS, SpGEMM) {
     sort(kv2.begin(), kv2.end(), [](const auto & a, const auto & b) -> bool {
       return a.first > b.first;
     });
+    sort(kv4.begin(), kv4.end(), [](const auto & a, const auto & b) -> bool {
+      return a.first > b.first;
+    });
 
     const auto rnnz = C1_.ia[i + 1] - C1_.ia[i];
 
-    for (EFIKA_ind_t j = 0; j < rnnz; j++)
+    for (EFIKA_ind_t j = 0; j < rnnz; j++) {
       ASSERT_EQ(kv1[j].first, kv2[j].first);
+      ASSERT_EQ(kv1[j].first, kv4[j].first);
+    }
 
-    for (EFIKA_ind_t j = 0; j < rnnz; j++)
+    for (EFIKA_ind_t j = 0; j < rnnz; j++) {
       ASSERT_EQ(kv1[j].second, kv2[j].second);
+      ASSERT_EQ(kv1[j].second, kv4[j].second);
+    }
   }
 }

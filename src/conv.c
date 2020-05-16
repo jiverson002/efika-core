@@ -392,7 +392,7 @@ rsbcsr(Matrix const * const A, Matrix * const B)
   for (ind_t i = 0, k = 0; i < a_nnz;) {
     ind_t const r = kv[i].k.r;
 
-    for (; kv[i].k.r == r; i++) {
+    for (; i < a_nnz && kv[i].k.r == r; i++) {
       if (a_a)
         b_a[k]  = kv[i].v;
       b_ja[k++] = kv[i].k.c;
