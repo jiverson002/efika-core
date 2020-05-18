@@ -209,29 +209,42 @@ RSB_node_walk(
   /* compute new dimension */
   ind_t const nn = n / 2;
 
-  /* compute quadrant # non-zeros */
-  ind_t const nnz0 = sa[0];
-  ind_t const nnz1 = sa[1] - sa[0];
-  ind_t const nnz2 = sa[2] - sa[1];
-  ind_t const nnz3 = nnz   - sa[2];
-
   /* compute number of splits per quadrant */
   ind_t const nsa = RSB_sa_size(nn);
 
-  /* compute quadrant split offsets */
-  ind_t const * const sa0 = sa + 3;
-  ind_t const * const sa1 = sa0 + nsa;
-  ind_t const * const sa2 = sa1 + nsa;
-  ind_t const * const sa3 = sa2 + nsa;
+  /* compute quadrant offsets */
+  ind_t const rsp = ro + nn;
+  ind_t const csp = co + nn;
+
+  /* compute quadrant # non-zeros */
+  ind_t const nnz11 = sa[0];
+  ind_t const nnz12 = sa[1] - sa[0];
+  ind_t const nnz21 = sa[2] - sa[1];
+  ind_t const nnz22 = nnz   - sa[2];
+
+  /* compute quadrant pointers */
+  ind_t const * const sa11 = sa + 3;
+  ind_t const * const sa12 = sa11 + nsa;
+  ind_t const * const sa21 = sa12 + nsa;
+  ind_t const * const sa22 = sa21 + nsa;
+  ind_t const * const za11 = za;
+  ind_t const * const za12 = za + sa[0];
+  ind_t const * const za22 = za + sa[1];
+  ind_t const * const za21 = za + sa[2];
+  val_t const * const a11  = a;
+  val_t const * const a12  = a ? a + sa[0] : NULL;
+  val_t const * const a21  = a ? a + sa[1] : NULL;
+  val_t const * const a22  = a ? a + sa[2] : NULL;
+  struct kv   * const kv11 = kv;
+  struct kv   * const kv12 = kv + sa[0];
+  struct kv   * const kv21 = kv + sa[1];
+  struct kv   * const kv22 = kv + sa[2];
 
   /* recursively walk each quadrant */
-  RSB_node_walk(ro, co, nn, nnz0, sa0, za, a, kv);
-  RSB_node_walk(ro, co + nn, nn, nnz1, sa1, za + sa[0], a ? a + sa[0] : NULL,
-                kv + sa[0]);
-  RSB_node_walk(ro + nn, co, nn, nnz2, sa2, za + sa[1], a ? a + sa[1] : NULL,
-                kv + sa[1]);
-  RSB_node_walk(ro + nn, co + nn, nn, nnz3, sa3, za + sa[2],
-                a ? a + sa[2] : NULL, kv + sa[2]);
+  RSB_node_walk(ro,  co,  nn, nnz11, sa11, za11, a11, kv11);
+  RSB_node_walk(ro,  csp, nn, nnz12, sa12, za12, a12, kv12);
+  RSB_node_walk(rsp, co,  nn, nnz21, sa21, za21, a21, kv21);
+  RSB_node_walk(rsp, csp, nn, nnz22, sa22, za22, a22, kv22);
 }
 
 /*----------------------------------------------------------------------------*/

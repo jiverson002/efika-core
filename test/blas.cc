@@ -11,11 +11,13 @@
 #include "efika/core/rsb.h"
 //#include "efika/data/bms_pos.h"
 //#include "efika/data/example.h"
-#include "efika/data/groceries.h"
+//#include "efika/data/groceries.h"
 //#include "efika/data/rcv1_10k.h"
 //#include "efika/data/sports_1x1.h"
 //#include "efika/data/youtube.h"
-#include "efika/data/youtube_50k.h"
+//#include "efika/data/youtube_8k.h"
+#include "efika/data/youtube_10k.h"
+//#include "efika/data/youtube_50k.h"
 
 //#define DATASET         bms_pos
 //#define DATASET         example
@@ -23,7 +25,9 @@
 //#define DATASET         rcv1_10k
 //#define DATASET         sports_1x1
 //#define DATASET         youtube
-#define DATASET         youtube_50k
+//#define DATASET         youtube_8k
+#define DATASET         youtube_10k
+//#define DATASET         youtube_50k
 #define xxdataset(d, v) d ## _ ## v
 #define xdataset(d, v)  xxdataset(d, v)
 #define dataset(v)      xdataset(DATASET, v)
@@ -106,7 +110,7 @@ class BLAS : public ::testing::Test {
 
       C3_.nr = A_.nr;
       C3_.nc = A_.nr;
-      C3_.sa = static_cast<EFIKA_ind_t*>(malloc(RSB_sa_size(C3_.nr) * sizeof(*C3_.ja)));
+      C3_.sa = static_cast<EFIKA_ind_t*>(calloc(RSB_sa_size(C3_.nr), sizeof(*C3_.ja)));
       C3_.za = static_cast<EFIKA_ind_t*>(malloc(C3_.nr * C3_.nr * sizeof(*C3_.ja)));
       C3_.a  = static_cast<EFIKA_val_t*>(malloc(C3_.nr * C3_.nr * sizeof(*C3_.a)));
 
@@ -114,6 +118,7 @@ class BLAS : public ::testing::Test {
         throw std::runtime_error("Could not allocate solution matrix C3");
 
 
+      //for (EFIKA_ind_t i = 0; i < 67108864; i++) {
       for (EFIKA_ind_t i = 0; i < 100000000; i++) {
       //for (EFIKA_ind_t i = 0; i < 3000000000; i++) {
         C3_.za[i] = (EFIKA_ind_t)-1;

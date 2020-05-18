@@ -5,6 +5,8 @@
 #include "efika/core/blas.h"
 #include "efika/core/rsb.h"
 
+#define SPLIT_SIZE 70000
+
 /*----------------------------------------------------------------------------*/
 /*! Sparse-sparse matrix multiplication C = A * B, where A is stored in CSR
  * format and B is stored in CSC format.
@@ -113,7 +115,7 @@ RSB_in_cache(ind_t const a_nnz, ind_t const b_nnz)
 {
   // FIXME: hard-code
   //return (a_nnz + b_nnz) <= 4000;
-  return (a_nnz + b_nnz) <= 5000000;
+  return (a_nnz + b_nnz) <= SPLIT_SIZE;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -234,10 +236,12 @@ RSB_spgemm_csr_csc_v1(
         ind_t const x = RSB_idx(r, c);
 
         /* fast-forward k to next output element */
-        for (; c_za[k] < x; k++);
+        for (; k < c_nnz && c_za[k] < x; k++);
 
         /* get output index */
-        ind_t const o = c_za[k] == x ? k : (c_za[c_nnz] = x, c_nnz++);
+        ind_t const o = k < c_nnz && c_za[k] == x
+                      ? k
+                      : (c_za[c_nnz] = x, c_nnz++);
 
         /* record result */
         c_a[o] += res;
@@ -313,11 +317,11 @@ RSB_spgemm_cache(
   //static ind_t icache[4002];
   //static val_t vcache[4002];
   static ind_t * icache = NULL;
-  if (!icache) icache = malloc(5000002 * sizeof(ind_t));
+  if (!icache) icache = malloc((SPLIT_SIZE + 2) * sizeof(ind_t));
   static val_t * vcache = NULL;
-  if (!vcache) vcache = malloc(5000002 * sizeof(val_t));
+  if (!vcache) vcache = malloc((SPLIT_SIZE + 2) * sizeof(val_t));
   static val_t * spa = NULL;
-  if (!spa) spa = calloc(5000002, sizeof(val_t));
+  if (!spa) spa = calloc((SPLIT_SIZE + 2), sizeof(val_t));
 
   ind_t * const a_za_cache = icache;
   val_t * const a_a_cache  = vcache;
@@ -344,6 +348,7 @@ RSB_spgemm_cache(
 /*----------------------------------------------------------------------------*/
 static ind_t
 RSB_spgemm(
+  int   const lvl,
   ind_t const n,
   ind_t const a_ro,
   ind_t const a_co,
@@ -374,10 +379,8 @@ RSB_spgemm(
                             a_nnz, a_za, a_a,  /* C = A * B */
                             b_nnz, b_za, b_a,
                             c_nnz, c_za, c_a,
-                            tmp);
+                            tmp) - c_nnz;
   }
-
-  abort();
 
   /* temporary split values */
   ind_t a_sp[3];
@@ -458,59 +461,59 @@ RSB_spgemm(
   ind_t * const c22_sa = c21_sa + nsa;
 
   /* C11 := A11 * B11 */
-  ind_t nnz = RSB_spgemm(nn,
+  ind_t nnz = RSB_spgemm(lvl + 1, nn,
                          a_ro,  a_co,  a11_nnz, a11_sa, a11_za, a11_a,
                          b_ro,  b_co,  b11_nnz, b11_sa, b11_za, b11_a,
                          0, c11_sa, c_za, c_a,
                          tmp);
   /* C11 += A12 * B21 */
-  nnz = RSB_spgemm(nn,
-                   a_ro,  a_csp, a12_nnz, a12_sa, a12_za, a12_a,
-                   b_rsp, b_co,  b21_nnz, b21_sa, b21_za, b21_a,
-                   nnz, c11_sa, c_za + nnz, c_a + nnz,
-                   tmp);
+  nnz += RSB_spgemm(lvl + 1, nn,
+                    a_ro,  a_csp, a12_nnz, a12_sa, a12_za, a12_a,
+                    b_rsp, b_co,  b21_nnz, b21_sa, b21_za, b21_a,
+                    nnz, c11_sa, c_za, c_a,
+                    tmp);
   c_sp[0] = nnz;
 
   /* C12 := A11 * B12 */
-  nnz = RSB_spgemm(nn,
-                   a_ro,  a_co,  a11_nnz, a11_sa, a11_za, a11_a,
-                   b_ro,  b_csp, b12_nnz, b12_sa, b12_za, b12_a,
-                   0, c12_sa, c_za + c_sp[0], c_a + c_sp[0],
-                   tmp);
+  nnz  = RSB_spgemm(lvl + 1, nn,
+                    a_ro,  a_co,  a11_nnz, a11_sa, a11_za, a11_a,
+                    b_ro,  b_csp, b12_nnz, b12_sa, b12_za, b12_a,
+                    0, c12_sa, c_za + c_sp[0], c_a + c_sp[0],
+                    tmp);
   /* C12 += A12 * B22 */
-  nnz = RSB_spgemm(nn,
-                   a_ro,  a_csp, a12_nnz, a12_sa, a12_za, a12_a,
-                   b_rsp, b_csp, b22_nnz, b22_sa, b22_za, b22_a,
-                   nnz, c12_sa, c_za + c_sp[0] + nnz, c_a + c_sp[0] + nnz,
-                   tmp);
+  nnz += RSB_spgemm(lvl + 1, nn,
+                    a_ro,  a_csp, a12_nnz, a12_sa, a12_za, a12_a,
+                    b_rsp, b_csp, b22_nnz, b22_sa, b22_za, b22_a,
+                    nnz, c12_sa, c_za + c_sp[0], c_a + c_sp[0],
+                    tmp);
   c_sp[1] = c_sp[0] + nnz;
 
   /* C21 := A21 * B11 */
-  nnz = RSB_spgemm(nn,
-                   a_rsp, a_co,  a21_nnz, a21_sa, a21_za, a21_a,
-                   b_ro,  b_co,  b11_nnz, b11_sa, b11_za, b11_a,
-                   0, c21_sa, c_za + c_sp[1], c_a + c_sp[1],
-                   tmp);
+  nnz  = RSB_spgemm(lvl + 1, nn,
+                    a_rsp, a_co,  a21_nnz, a21_sa, a21_za, a21_a,
+                    b_ro,  b_co,  b11_nnz, b11_sa, b11_za, b11_a,
+                    0, c21_sa, c_za + c_sp[1], c_a + c_sp[1],
+                    tmp);
   /* C21 += A22 * B21 */
-  nnz = RSB_spgemm(nn,
-                   a_rsp, a_csp, a22_nnz, a22_sa, a22_za, a22_a,
-                   b_rsp, b_co,  b21_nnz, b21_sa, b21_za, b21_a,
-                   nnz, c21_sa, c_za + c_sp[1] + nnz, c_a + c_sp[1] + nnz,
-                   tmp);
+  nnz += RSB_spgemm(lvl + 1, nn,
+                    a_rsp, a_csp, a22_nnz, a22_sa, a22_za, a22_a,
+                    b_rsp, b_co,  b21_nnz, b21_sa, b21_za, b21_a,
+                    nnz, c21_sa, c_za + c_sp[1], c_a + c_sp[1],
+                    tmp);
   c_sp[2] = c_sp[1] + nnz;
 
   /* C22 := A21 * B12 */
-  nnz = RSB_spgemm(nn,
-                   a_rsp, a_co,  a21_nnz, a21_sa, a21_za, a21_a,
-                   b_ro,  b_csp, b12_nnz, b12_sa, b12_za, b12_a,
-                   0, c22_sa, c_za + c_sp[2], c_a + c_sp[2],
-                   tmp);
+  nnz  = RSB_spgemm(lvl + 1, nn,
+                    a_rsp, a_co,  a21_nnz, a21_sa, a21_za, a21_a,
+                    b_ro,  b_csp, b12_nnz, b12_sa, b12_za, b12_a,
+                    0, c22_sa, c_za + c_sp[2], c_a + c_sp[2],
+                    tmp);
   /* C22 += A22 * B22 */
-  nnz = RSB_spgemm(nn,
-                   a_rsp, a_csp, a22_nnz, a22_sa, a22_za, a22_a,
-                   b_rsp, b_csp, b22_nnz, b22_sa, b22_za, b22_a,
-                   nnz, c22_sa, c_za + c_sp[2] + nnz, c_a + c_sp[2] + nnz,
-                   tmp);
+  nnz += RSB_spgemm(lvl + 1, nn,
+                    a_rsp, a_csp, a22_nnz, a22_sa, a22_za, a22_a,
+                    b_rsp, b_csp, b22_nnz, b22_sa, b22_za, b22_a,
+                    nnz, c22_sa, c_za + c_sp[2], c_a + c_sp[2],
+                    tmp);
 
   if (RSB_is_split(n)) {
     c_sa[0] = c_sp[0]; c_sa[1] = c_sp[1]; c_sa[2] = c_sp[2];
@@ -542,6 +545,6 @@ BLAS_spgemm_rsb_rsb(
   ind_t       * const restrict tmp
 )
 {
-  *cnnz = RSB_spgemm(n, 0, 0, annz, sa, za, a, 0, 0, bnnz, sb, zb, b, 0, sc, zc,
+  *cnnz = RSB_spgemm(0, n, 0, 0, annz, sa, za, a, 0, 0, bnnz, sb, zb, b, 0, sc, zc,
                      c, tmp);
 }
