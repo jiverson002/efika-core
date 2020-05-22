@@ -215,7 +215,7 @@ extern "C" {
 ind_t RSB_spgemm_cache_v2(ind_t,
                           ind_t, ind_t const *, val_t const *,
                           ind_t, ind_t const *, val_t const *,
-                                 ind_t       *, val_t       *,
+                          ind_t, ind_t       *, val_t       *,
                           ind_t *, val_t *);
 
 #ifdef __cplusplus

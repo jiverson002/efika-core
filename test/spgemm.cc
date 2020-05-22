@@ -114,6 +114,51 @@ TEST_F(SpGEMM, RSB_RSB_CANARY) {
   };
   std::array<EFIKA_val_t, 2> b12 { 4, 7 };
 
+  std::array<EFIKA_ind_t, 20> ih;
+  std::array<EFIKA_val_t, 20> vh;
+
+  std::fill(vh.begin(), vh.end(), 0.0);
+
+#if 1
+  std::array<EFIKA_ind_t, 11> zc;
+  std::array<EFIKA_val_t, 10> c;
+
+  std::array<EFIKA_ind_t, 10> zd {
+    0x00000000 /* r0c0 */, 0x00000003 /* r0c3 */, 0x00010001 /* r1c1 */,
+    0x00010002 /* r1c2 */, 0x00020001 /* r2c1 */, 0x00020002 /* r2c2 */,
+    0x00020003 /* r2c3 */, 0x00030000 /* r3c0 */, 0x00030003 /* r3c3 */,
+    0x00030002 /* r3c2 */
+  };
+  std::array<EFIKA_val_t, 10> d { 1.0, 5.0, 1.0, 2.0, 2.0, 29.0, 18.0, 5.0,
+                                  110.0, 18.0 };
+
+  auto cnnz = RSB_spgemm_cache_v2(4,
+                                  za11.size(), za11.data(), a11.data(),
+                                  zb11.size(), zb11.data(), b11.data(),
+                                  0, zc.data(), c.data(),
+                                  ih.data(), vh.data());
+
+  cnnz = RSB_spgemm_cache_v2(4,
+                             za12.size(), za12.data(), a12.data(),
+                             zb12.size(), zb12.data(), b12.data(),
+                             cnnz, zc.data(), c.data(),
+                             ih.data(), vh.data());
+
+  ASSERT_EQ(cnnz, zd.size());
+  for (EFIKA_ind_t i = 0; i < zd.size(); i++) {
+    ASSERT_EQ(zc[i], zd[i]) << "i = " << i
+      << " (" << RSB_row(zc[i]) << ", " << RSB_col(zc[i]) << ") <=>"
+      << " (" << RSB_row(zd[i]) << ", " << RSB_col(zd[i]) << ")";
+    ASSERT_EQ(c[i], d[i]) << "i = " << i
+      << " (" << RSB_row(zc[i]) << ", " << RSB_col(zc[i]) << ") <=>"
+      << " (" << RSB_row(zd[i]) << ", " << RSB_col(zd[i]) << ")";
+  }
+#else
+  std::array<EFIKA_ind_t, 11> zc1;
+  std::array<EFIKA_val_t, 10> c1;
+  std::array<EFIKA_ind_t,  3> zc2;
+  std::array<EFIKA_val_t,  2> c2;
+
   std::array<EFIKA_ind_t, 10> zd1 {
     0x00000000 /* r0c0 */, 0x00000003 /* r0c3 */, 0x00010001 /* r1c1 */,
     0x00010002 /* r1c2 */, 0x00020001 /* r2c1 */, 0x00020002 /* r2c2 */,
@@ -128,36 +173,16 @@ TEST_F(SpGEMM, RSB_RSB_CANARY) {
   };
   std::array<EFIKA_val_t, 2> d2 { 16.0, 49.0 };
 
-#if 0
-  std::array<EFIKA_ind_t, 10> zd {
-    0x00000000 /* r0c0 */, 0x00000003 /* r0c3 */, 0x00010001 /* r1c1 */,
-    0x00010002 /* r1c2 */, 0x00020001 /* r2c1 */, 0x00020002 /* r2c2 */,
-    0x00020003 /* r2c3 */, 0x00030000 /* r3c0 */, 0x00030003 /* r3c3 */,
-    0x00030002 /* r3c2 */
-  };
-  std::array<EFIKA_val_t, 10> d { 1.0, 5.0, 1.0, 2.0, 2.0, 29.0, 18.0, 5.0,
-                                  110.0, 18.0 };
-#endif
-
-  std::array<EFIKA_ind_t, 10> zc1;
-  std::array<EFIKA_val_t, 10> c1;
-  std::array<EFIKA_ind_t,  2> zc2;
-  std::array<EFIKA_val_t,  2> c2;
-  std::array<EFIKA_ind_t, 20> ih;
-  std::array<EFIKA_val_t, 20> vh;
-
-  std::fill(vh.begin(), vh.end(), 0.0);
-
   const auto nnz1 = RSB_spgemm_cache_v2(4,
                                         za11.size(), za11.data(), a11.data(),
                                         zb11.size(), zb11.data(), b11.data(),
-                                        zc1.data(), c1.data(),
+                                        0, zc1.data(), c1.data(),
                                         ih.data(), vh.data());
 
   const auto nnz2 = RSB_spgemm_cache_v2(4,
                                         za12.size(), za12.data(), a12.data(),
                                         zb12.size(), zb12.data(), b12.data(),
-                                        zc2.data(), c2.data(),
+                                        0, zc2.data(), c2.data(),
                                         ih.data(), vh.data());
 
   ASSERT_EQ(nnz1, zd1.size());
@@ -179,6 +204,7 @@ TEST_F(SpGEMM, RSB_RSB_CANARY) {
       << " (" << RSB_row(zc2[i]) << ", " << RSB_col(zc2[i]) << ") <=>"
       << " (" << RSB_row(zd2[i]) << ", " << RSB_col(zd2[i]) << ")";
   }
+#endif
 }
 
 #if 0
