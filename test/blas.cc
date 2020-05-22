@@ -231,13 +231,16 @@ TEST_F(BLAS, SpGEMM) {
   if (int err = EFIKA_Matrix_conv(&C3_, &C4_, EFIKA_MORD_CSR))
     throw std::runtime_error("Could not convert C3 to C4");
 
+  std::cerr << ">>> " << C1_.ia[C1_.nr] << std::endl;
+  std::cerr << ">>> " << C4_.ia[C4_.nr] << std::endl;
+
   ASSERT_EQ(C1_.nr, C2_.nr);
   ASSERT_EQ(C1_.nc, C2_.nc);
   ASSERT_EQ(C1_.nr, C4_.nr);
   ASSERT_EQ(C1_.nc, C4_.nc);
   for (EFIKA_ind_t i = 0; i <= C1_.nr; i++) {
-    ASSERT_EQ(C1_.ia[i], C2_.ia[i]);
-    ASSERT_EQ(C1_.ia[i], C4_.ia[i]);
+    ASSERT_EQ(C1_.ia[i], C2_.ia[i]) << "i = " << i;
+    ASSERT_EQ(C1_.ia[i], C4_.ia[i]) << "i = " << i;
   }
 
   for (EFIKA_ind_t i = 0; i < C1_.nr; i++) {

@@ -23,7 +23,8 @@ target_sources(${PROJECT_NAME}
           src/iidx.c src/init.c src/norm.c src/perm.c src/rord.c src/sort.c
           src/test.c src/blas/csrcsc.c src/blas/spgemm.c src/blas/vdoti.c
           src/blas/vgthrz.c src/blas/vnrm2.c src/blas/vscal.c src/blas/vsctr.c
-          src/blas/vsctrz.c src/gc/cleanup.c src/gc/free.c src/gc/realloc.c)
+          src/blas/vsctrz.c src/gc/cleanup.c src/gc/free.c src/gc/realloc.c
+          src/rsb/spgemm.c)
 
 target_include_directories(${PROJECT_NAME}
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

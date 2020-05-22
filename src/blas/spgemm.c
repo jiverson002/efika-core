@@ -5,7 +5,8 @@
 #include "efika/core/blas.h"
 #include "efika/core/rsb.h"
 
-#define SPLIT_SIZE 70000
+#define LEVEL      100
+#define SPLIT_SIZE 50000
 
 /*----------------------------------------------------------------------------*/
 /*! Sparse-sparse matrix multiplication C = A * B, where A is stored in CSR
@@ -131,7 +132,7 @@ RSB_in_cache(ind_t const a_nnz, ind_t const b_nnz)
  */
 /*----------------------------------------------------------------------------*/
 __attribute__((unused)) static inline ind_t
-RSB_spgemm_csr_csc_v0(
+RSB_spgemm_csr_csc_v0( /* merge-like */
   ind_t const a_nnz,
   ind_t const * const restrict a_za,
   val_t const * const restrict a_a,
@@ -201,7 +202,7 @@ RSB_spgemm_csr_csc_v0(
  */
 /*----------------------------------------------------------------------------*/
 __attribute__((unused)) static inline ind_t
-RSB_spgemm_csr_csc_v1(
+RSB_spgemm_csr_csc_v1( /* sparse-accumulator */
   ind_t const n,
   ind_t const a_nnz,
   ind_t const * const restrict a_za,
@@ -215,6 +216,40 @@ RSB_spgemm_csr_csc_v1(
   val_t       * const restrict spa
 )
 {
+  for (ind_t i = 1; i < a_nnz; i++) {
+    if (RSB_row(a_za[i]) == RSB_row(a_za[i - 1])) {
+      if (RSB_col(a_za[i]) == RSB_col(a_za[i - 1])) {
+        fprintf(stderr, "a.0\n"); abort();
+      } else if (RSB_col(a_za[i]) < RSB_col(a_za[i - 1])) {
+        fprintf(stderr, "a.1\n"); abort();
+      }
+    } else if (RSB_row(a_za[i]) < RSB_row(a_za[i - 1])) {
+      fprintf(stderr, "a.2\n"); abort();
+    }
+  }
+  for (ind_t i = 1; i < b_nnz; i++) {
+    if (RSB_col(b_za[i]) == RSB_col(b_za[i - 1])) {
+      if (RSB_row(b_za[i]) == RSB_row(b_za[i - 1])) {
+        fprintf(stderr, "b.0\n"); abort();
+      } else if (RSB_row(b_za[i]) < RSB_row(b_za[i - 1])) {
+        fprintf(stderr, "b.1\n"); abort();
+      }
+    } else if (RSB_col(b_za[i]) < RSB_col(b_za[i - 1])) {
+      fprintf(stderr, "b.2\n"); abort();
+    }
+  }
+  for (ind_t i = 1; i < c_nnz; i++) {
+    if (RSB_row(c_za[i]) == RSB_row(c_za[i - 1])) {
+      if (RSB_col(c_za[i]) == RSB_col(c_za[i - 1])) {
+        fprintf(stderr, "c.0\n"); abort();
+      } else if (RSB_col(c_za[i]) < RSB_col(c_za[i - 1])) {
+        fprintf(stderr, "c.1\n"); abort();
+      }
+    } else if (RSB_row(c_za[i]) < RSB_row(c_za[i - 1])) {
+      fprintf(stderr, "c.2\n"); abort();
+    }
+  }
+
   for (ind_t i = 0, k = 0; i < a_nnz;) {
     ind_t const r = RSB_row(a_za[i]);
 
@@ -255,6 +290,9 @@ RSB_spgemm_csr_csc_v1(
   return c_nnz;
 }
 
+/*----------------------------------------------------------------------------*/
+/*! */
+/*----------------------------------------------------------------------------*/
 static inline ind_t
 RSB_spgemm_csr_csc(
   ind_t const n,
@@ -282,7 +320,6 @@ RSB_spgemm_csr_csc(
                                spa);
 #endif
 }
-
 
 /*----------------------------------------------------------------------------*/
 /*! Multiply matrix A with matrix B entirely in cache, storing the result in
@@ -369,17 +406,33 @@ RSB_spgemm(
   ind_t       * const restrict tmp
 )
 {
+  if (lvl <= LEVEL) {
+    for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
+    fprintf(stderr, "%6u x %6u // (%u, %u) (%u, %u) // %u, %u, %u\n", n, n,
+            a_ro, a_co, b_ro, b_co, a_nnz, b_nnz, c_nnz);
+  }
+
   /* shortcut if either matrix is all zeros */
-  if (0 == a_nnz || 0 == b_nnz)
+  if (0 == a_nnz || 0 == b_nnz) {
+    if (lvl <= LEVEL) {
+      for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
+      fprintf(stderr, "                0:> 0\n");
+    }
     return 0;
+  }
 
   /* check if multiplication can be done entirely in cache */
   if (!RSB_is_split(n) && RSB_in_cache(a_nnz, b_nnz)) {
-    return RSB_spgemm_cache(n,
-                            a_nnz, a_za, a_a,  /* C = A * B */
-                            b_nnz, b_za, b_a,
-                            c_nnz, c_za, c_a,
-                            tmp) - c_nnz;
+    ind_t const nnz = RSB_spgemm_cache(n,
+                                       a_nnz, a_za, a_a,  /* C = A * B */
+                                       b_nnz, b_za, b_a,
+                                       c_nnz, c_za, c_a,
+                                       tmp) - c_nnz;
+    if (lvl <= LEVEL) {
+      for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
+      fprintf(stderr, "                1:> %u\n", nnz);
+    }
+    return nnz;
   }
 
   /* temporary split values */
@@ -460,6 +513,12 @@ RSB_spgemm(
   ind_t * const c21_sa = c12_sa + nsa;
   ind_t * const c22_sa = c21_sa + nsa;
 
+  if (lvl <= LEVEL) {
+    for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
+    fprintf(stderr, "C11\n");
+    for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
+    fprintf(stderr, "===\n");
+  }
   /* C11 := A11 * B11 */
   ind_t nnz = RSB_spgemm(lvl + 1, nn,
                          a_ro,  a_co,  a11_nnz, a11_sa, a11_za, a11_a,
@@ -474,6 +533,12 @@ RSB_spgemm(
                     tmp);
   c_sp[0] = nnz;
 
+  if (lvl <= LEVEL) {
+    for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
+    fprintf(stderr, "C12\n");
+    for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
+    fprintf(stderr, "===\n");
+  }
   /* C12 := A11 * B12 */
   nnz  = RSB_spgemm(lvl + 1, nn,
                     a_ro,  a_co,  a11_nnz, a11_sa, a11_za, a11_a,
@@ -488,6 +553,12 @@ RSB_spgemm(
                     tmp);
   c_sp[1] = c_sp[0] + nnz;
 
+  if (lvl <= LEVEL) {
+    for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
+    fprintf(stderr, "C21\n");
+    for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
+    fprintf(stderr, "===\n");
+  }
   /* C21 := A21 * B11 */
   nnz  = RSB_spgemm(lvl + 1, nn,
                     a_rsp, a_co,  a21_nnz, a21_sa, a21_za, a21_a,
@@ -502,6 +573,12 @@ RSB_spgemm(
                     tmp);
   c_sp[2] = c_sp[1] + nnz;
 
+  if (lvl <= LEVEL) {
+    for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
+    fprintf(stderr, "C22\n");
+    for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
+    fprintf(stderr, "===\n");
+  }
   /* C22 := A21 * B12 */
   nnz  = RSB_spgemm(lvl + 1, nn,
                     a_rsp, a_co,  a21_nnz, a21_sa, a21_za, a21_a,
@@ -517,6 +594,11 @@ RSB_spgemm(
 
   if (RSB_is_split(n)) {
     c_sa[0] = c_sp[0]; c_sa[1] = c_sp[1]; c_sa[2] = c_sp[2];
+  }
+
+  if (lvl <= LEVEL) {
+    for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
+    fprintf(stderr, "                2:> %u\n", c_sp[2] + nnz);
   }
 
   return c_sp[2] + nnz;

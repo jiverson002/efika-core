@@ -205,4 +205,21 @@ RSB_rsbcsc(
 # endif
 #endif
 
+/*----------------------------------------------------------------------------*/
+/*! Private API. */
+/*----------------------------------------------------------------------------*/
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+ind_t RSB_spgemm_cache_v2(ind_t,
+                          ind_t, ind_t const *, val_t const *,
+                          ind_t, ind_t const *, val_t const *,
+                                 ind_t       *, val_t       *,
+                          ind_t *, val_t *);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* EFIKA_CORE_RSB_H */
