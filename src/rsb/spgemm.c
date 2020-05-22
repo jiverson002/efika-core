@@ -25,7 +25,7 @@ RSB_spgemm_csr_csr_v2(
     ind_t const row = RSB_row(za[i]);
     ind_t nnz = 0;
 
-    for (ind_t j = 0; RSB_row(za[i]) == row; i++) {
+    for (ind_t j = 0; i < annz && RSB_row(za[i]) == row; i++) {
       ind_t const col = RSB_col(za[i]);
       val_t const v = a[i];
 
@@ -33,7 +33,7 @@ RSB_spgemm_csr_csr_v2(
       for (; j < bnnz && RSB_row(zb[j]) < col; j++);
 
       if (j == bnnz)
-        continue;
+        break;
 
       for (; RSB_row(zb[j]) == col; j++) {
         ind_t const y = RSB_col(zb[j]) % n;
@@ -49,6 +49,9 @@ RSB_spgemm_csr_csr_v2(
       }
     }
 
+    /* make sure that /A/ is advanced to next row */
+    for (; i < annz && RSB_row(za[i]) == row; i++);
+
     /* XXX: Entries of /C/ are accumulated in temporary memory. The thinking
      *      here is that these memories will be stored *mostly* in cache. If
      *      that is the case, then *most* accumulation is done in cache. Then,
@@ -56,9 +59,9 @@ RSB_spgemm_csr_csr_v2(
      *      be optimized with non-temporal memory stores, so as not to pollute
      *      the cache with entries that will only be read during a single row.
      *
-     *      I do not think that the compiler will generate non-temporal stores
-     *      for this, so it may need to be hard-coded using intrinsics. This
-     *      should be explored after proper benchmarking is implemented.
+     * TODO: I do not think that the compiler will generate non-temporal stores
+     *       for this, so it may need to be hard-coded using intrinsics. This
+     *       should be explored after proper benchmarking is implemented.
      */
     for (ind_t j = 0; j < nnz; j++, cnnz++) {
       ind_t const col = RSB_col(map[j]);
@@ -75,9 +78,7 @@ RSB_spgemm_csr_csr_v2(
 /*----------------------------------------------------------------------------*/
 /*! Multiply matrix A with matrix B entirely in cache, storing the result in
  *  matrix C (not necessarily stored in cache). The results will be stored in
- *  row-major order in compressed-index format in C. This function takes as
- *  input the current number of non-zeros in C and returns the new number of
- *  non-zeros in C. */
+ *  row-major order in compressed-index format in C. */
 /*----------------------------------------------------------------------------*/
 ind_t
 RSB_spgemm_cache_v2(
@@ -104,7 +105,7 @@ RSB_spgemm_cache_v2(
    */
 
   // FIXME: hard-code
-  static ind_t icache[3002];
+  static ind_t icache[3000];
   static val_t vcache[3000];
 
   /* XXX: Allocation of cache
@@ -131,11 +132,11 @@ RSB_spgemm_cache_v2(
 
   /* */
   RSB_rsbcsr(n, annz, za, a, itmp, za_cache, a_cache);
-  za_cache[annz] = ~za_cache[annz - 1]; // sentinel value
+  //za_cache[annz] = ~za_cache[annz - 1]; // sentinel value
 
   /* */
   RSB_rsbcsr(n, bnnz, zb, b, itmp, zb_cache, b_cache);
-  zb_cache[bnnz] = ~zb_cache[bnnz - 1]; // sentinel value
+  //zb_cache[bnnz] = ~zb_cache[bnnz - 1]; // sentinel value
 
   /* */
   return RSB_spgemm_csr_csr_v2(n,
@@ -143,4 +144,63 @@ RSB_spgemm_cache_v2(
                                bnnz, zb_cache, b_cache,
                                      zc,       c,
                                itmp, vtmp);
+}
+
+/*----------------------------------------------------------------------------*/
+/*! */
+/*----------------------------------------------------------------------------*/
+ind_t
+RSB_spgemm_merge_v2(
+  ind_t const n,
+  ind_t const annz,
+  ind_t const * const restrict za,
+  val_t const * const restrict a,
+  ind_t const bnnz,
+  ind_t const * const restrict zb,
+  val_t const * const restrict b,
+  ind_t       * const restrict zc,
+  val_t       * const restrict c,
+  val_t       * const restrict spa
+)
+{
+  ind_t cnnz = 0;
+
+  for (ind_t i = 0, j = 0; i < annz || j < bnnz;) {
+    if (j == bnnz || RSB_row(za[i]) < RSB_row(zb[j])) {
+      zc[cnnz] = za[i];
+      c[cnnz++] = a[i++];
+    } else if (i == annz || RSB_row(za[i]) > RSB_row(zb[j])) {
+      zc[cnnz] = zb[j];
+      c[cnnz++] = b[j++];
+    } else {
+      /* TODO: Improve spatial locality of sparse-accumulator accesses --- most
+       *       likely via a hash table. */
+
+      ind_t const row = RSB_row(za[i]);
+
+      /* populate sparse-accumulator will values from row of block A */
+      for (ind_t k = i; k < annz && RSB_row(za[k]) == row; k++)
+        spa[RSB_col(za[k]) % n] = a[k];
+
+      /* merge values from row of block B with sparse-accumulator */
+      for (; j < bnnz && RSB_row(zb[j]) == row; j++) {
+        ind_t const y = RSB_col(zb[j]) % n;
+        zc[cnnz] = zb[j];
+        c[cnnz++] = b[j] + spa[y];
+        spa[y] = 0.0;
+      }
+
+      /* advance to next row, clearing spa and populating results as we go */
+      for (; i < annz && RSB_row(za[i]) == row; i++) {
+        ind_t const y = RSB_col(za[i]) % n;
+        if (spa[y] > 0.0) {
+          zc[cnnz] = za[i];
+          c[cnnz++] = a[i];
+          spa[y] = 0.0;
+        }
+      }
+    }
+  }
+
+  return cnnz;
 }
