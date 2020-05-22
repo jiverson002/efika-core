@@ -15,8 +15,9 @@
 //#include "efika/data/rcv1_10k.h"
 //#include "efika/data/sports_1x1.h"
 //#include "efika/data/youtube.h"
+#include "efika/data/youtube_256.h"
 //#include "efika/data/youtube_8k.h"
-#include "efika/data/youtube_10k.h"
+//#include "efika/data/youtube_10k.h"
 //#include "efika/data/youtube_50k.h"
 
 //#define DATASET         bms_pos
@@ -25,8 +26,9 @@
 //#define DATASET         rcv1_10k
 //#define DATASET         sports_1x1
 //#define DATASET         youtube
+#define DATASET         youtube_256
 //#define DATASET         youtube_8k
-#define DATASET         youtube_10k
+//#define DATASET         youtube_10k
 //#define DATASET         youtube_50k
 #define xxdataset(d, v) d ## _ ## v
 #define xdataset(d, v)  xxdataset(d, v)
@@ -117,14 +119,6 @@ class BLAS : public ::testing::Test {
       if (!(C3_.sa && C3_.za && C3_.a))
         throw std::runtime_error("Could not allocate solution matrix C3");
 
-
-      //for (EFIKA_ind_t i = 0; i < 67108864; i++) {
-      for (EFIKA_ind_t i = 0; i < 100000000; i++) {
-      //for (EFIKA_ind_t i = 0; i < 3000000000; i++) {
-        C3_.za[i] = (EFIKA_ind_t)-1;
-        C3_.a[i]  = 0.0;
-      }
-
       ih_ = static_cast<EFIKA_ind_t*>(calloc((RSB_size(A_.nr, A_.nc) + 1), sizeof(*ih_)));
       if (!ih_)
         throw std::runtime_error("Could not allocate scratch space");
@@ -163,59 +157,6 @@ class BLAS : public ::testing::Test {
 
 } // namespace
 
-TEST_F(BLAS, SpGEMM_RSB_RSB_CANARY) {
-  std::array<EFIKA_ind_t, 8> a_za {
-    0x00000000 /* r0c0 */, 0x00010001 /* r1c1 */, 0x00020001 /* r2c1 */,
-    0x00030000 /* r3c0 */, 0x00020003 /* r2c3 */, 0x00030003 /* r3c3 */,
-    0x00020005 /* r2c5 */, 0x00030007 /* r3c7 */
-  };
-  std::array<EFIKA_val_t, 8> a_a { 1, 1, 2, 5, 3, 6, 4, 7 };
-
-  std::array<EFIKA_ind_t, 8> b_za {
-    0x00000000 /* r0c0 */, 0x00010001 /* r1c1 */, 0x00000003 /* r0c3 */,
-    0x00010002 /* r1c2 */, 0x00030002 /* r3c2 */, 0x00030003 /* r3c3 */,
-    0x00050002 /* r5c2 */, 0x00070003 /* r7c3 */
-  };
-  std::array<EFIKA_val_t, 8> b_a { 1, 1, 5, 2, 3, 6, 4, 7 };
-
-  std::array<EFIKA_ind_t, 10> d_za {
-    0x00000000 /* r0c0 */, 0x00000003 /* r0c3 */, 0x00010001 /* r1c1 */,
-    0x00010002 /* r1c2 */, 0x00020001 /* r2c1 */, 0x00020002 /* r2c2 */,
-    0x00020003 /* r2c3 */, 0x00030000 /* r3c0 */, 0x00030002 /* r3c2 */,
-    0x00030003 /* r3c3 */
-  };
-  std::array<EFIKA_val_t, 10> d_a { 2.0, 10.0, 2.0, 4.0, 4.0, 58.0, 36.0, 10.0,
-                                    36.0, 220.0 };
-
-  std::array<EFIKA_ind_t, 10> c_za;
-  std::array<EFIKA_val_t, 10> c_a;
-  std::array<EFIKA_ind_t, 20> ih;
-
-  for (EFIKA_ind_t i = 0; i < c_za.size(); i++) {
-    c_za[i] = (EFIKA_ind_t)-1;
-    c_a[i]  = 0.0;
-  }
-
-  ind_t c_nnz;
-
-  efika_BLAS_spgemm_rsb_rsb(8,
-                            8, NULL, a_za.data(), a_a.data(),
-                            8, NULL, b_za.data(), b_a.data(),
-                            &c_nnz, NULL, c_za.data(), c_a.data(),
-                            ih.data());
-
-  efika_BLAS_spgemm_rsb_rsb(8,
-                            8, NULL, a_za.data(), a_a.data(),
-                            8, NULL, b_za.data(), b_a.data(),
-                            &c_nnz, NULL, c_za.data(), c_a.data(),
-                            ih.data());
-
-  for (EFIKA_ind_t i = 0; i < c_za.size(); i++) {
-    ASSERT_EQ(c_za[i], d_za[i]);
-    ASSERT_EQ(c_a[i], d_a[i]);
-  }
-}
-
 TEST_F(BLAS, SpGEMM) {
   efika_BLAS_spgemm_csr_csc(A_.nr, B1_.nr, A_.ia, A_.ja, A_.a, B1_.ia, B1_.ja,
                             B1_.a, C1_.ia, C1_.ja, C1_.a, vh_);
@@ -225,7 +166,7 @@ TEST_F(BLAS, SpGEMM) {
 
   efika_BLAS_spgemm_rsb_rsb(RSB_size(Z1_.nr, Z1_.nc), Z1_.nnz, Z1_.sa, Z1_.za,
                             Z1_.a, Z2_.nnz, Z2_.sa, Z2_.za, Z2_.a, &C3_.nnz,
-                            C3_.sa, C3_.za, C3_.a, ih_);
+                            C3_.sa, C3_.za, C3_.a, ih_, vh_);
 
   C3_.mord = EFIKA_MORD_RSB;
   if (int err = EFIKA_Matrix_conv(&C3_, &C4_, EFIKA_MORD_CSR))

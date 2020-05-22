@@ -20,6 +20,11 @@
 #endif
 
 /*----------------------------------------------------------------------------*/
+/*! RSB routines. */
+/*----------------------------------------------------------------------------*/
+#define RSB_spgemm efika_RSB_spgemm
+
+/*----------------------------------------------------------------------------*/
 /*! */
 /*----------------------------------------------------------------------------*/
 static ind_t const RSB_SHIFT = sizeof(ind_t) * CHAR_BIT / 2;
@@ -212,16 +217,23 @@ RSB_rsbcsc(
 extern "C" {
 #endif
 
-ind_t RSB_spgemm_cache_v2(ind_t,
-                          ind_t, ind_t const *, val_t const *,
-                          ind_t, ind_t const *, val_t const *,
-                                 ind_t       *, val_t       *,
-                          ind_t *, val_t *);
+ind_t RSB_spgemm_cache(ind_t,
+                       ind_t, ind_t const *, val_t const *,
+                       ind_t, ind_t const *, val_t const *,
+                       ind_t *, val_t *,
+                       ind_t *, val_t *);
 
-ind_t RSB_spgemm_merge_v2(ind_t,
-                          ind_t, ind_t const *, val_t const *,
-                          ind_t, ind_t const *, val_t const *,
-                          ind_t *, val_t *, val_t *);
+ind_t RSB_spgemm_merge(ind_t,
+                       ind_t, ind_t const *, val_t const *,
+                       ind_t, ind_t const *, val_t const *,
+                       ind_t *, val_t *, val_t *);
+
+ind_t
+RSB_spgemm(int, ind_t,
+           ind_t, ind_t, ind_t, ind_t const *, ind_t const *, val_t const *,
+           ind_t, ind_t, ind_t, ind_t const *, ind_t const *, val_t const *,
+           ind_t *, ind_t *, val_t *,
+           ind_t *, val_t *);
 
 #ifdef __cplusplus
 }

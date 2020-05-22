@@ -170,8 +170,6 @@ BENCHMARK_F(SpGEMM, CSR_CSR, SpGEMMFixture, 30, 10)
 
 BENCHMARK_F(SpGEMM, RSB_RSB, SpGEMMFixture, 30, 10)
 {
-  RSB_spgemm_cache_v2(RSB_size(Z1_.nr, Z1_.nc), Z1_.nnz, Z1_.za, Z1_.a, Z2_.nnz,
-                      Z2_.za, Z2_.a, C3_.za, C3_.a, ih_, vh_);
-
-
+  RSB_spgemm_cache(RSB_size(Z1_.nr, Z1_.nc), Z1_.nnz, Z1_.za, Z1_.a, Z2_.nnz,
+                   Z2_.za, Z2_.a, C3_.za, C3_.a, ih_, vh_);
 }
