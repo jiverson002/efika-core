@@ -119,7 +119,7 @@ TEST_F(SpGEMM, RSB_RSB_CANARY) {
 
   std::fill(vh.begin(), vh.end(), 0.0);
 
-#if 1
+#if 0
   std::array<EFIKA_ind_t, 11> zc;
   std::array<EFIKA_val_t, 10> c;
 
@@ -176,13 +176,13 @@ TEST_F(SpGEMM, RSB_RSB_CANARY) {
   const auto nnz1 = RSB_spgemm_cache_v2(4,
                                         za11.size(), za11.data(), a11.data(),
                                         zb11.size(), zb11.data(), b11.data(),
-                                        0, zc1.data(), c1.data(),
+                                        zc1.data(), c1.data(),
                                         ih.data(), vh.data());
 
   const auto nnz2 = RSB_spgemm_cache_v2(4,
                                         za12.size(), za12.data(), a12.data(),
                                         zb12.size(), zb12.data(), b12.data(),
-                                        0, zc2.data(), c2.data(),
+                                        zc2.data(), c2.data(),
                                         ih.data(), vh.data());
 
   ASSERT_EQ(nnz1, zd1.size());

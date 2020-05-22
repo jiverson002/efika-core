@@ -10,16 +10,18 @@ RSB_spgemm_csr_csr_v2(
   ind_t const annz,
   ind_t const * const restrict za,
   val_t const * const restrict a,
+  ind_t const bnnz,
   ind_t const * const restrict zb,
   val_t const * const restrict b,
-  ind_t       cnnz,
   ind_t       * const restrict zc,
   val_t       * const restrict c,
   ind_t       * const restrict map,
   val_t       * const restrict spa
 )
 {
-  for (ind_t i = 0, k = 0; i < annz;) {
+  ind_t cnnz = 0;
+
+  for (ind_t i = 0; i < annz;) {
     ind_t const row = RSB_row(za[i]);
     ind_t nnz = 0;
 
@@ -28,7 +30,10 @@ RSB_spgemm_csr_csr_v2(
       val_t const v = a[i];
 
       /* fast-forward the columns */
-      for (; RSB_row(zb[j]) < col; j++);
+      for (; j < bnnz && RSB_row(zb[j]) < col; j++);
+
+      if (j == bnnz)
+        continue;
 
       for (; RSB_row(zb[j]) == col; j++) {
         ind_t const y = RSB_col(zb[j]) % n;
@@ -44,21 +49,6 @@ RSB_spgemm_csr_csr_v2(
       }
     }
 
-    /* XXX: Merge block -- these could also be non-temporal accesses */
-    if (true) {
-      /* fast-forward the columns */
-      for (; k < cnnz && RSB_row(zc[k]) < row; k++);
-
-      /* merge sparse-accumulator */
-      for (; k < cnnz && RSB_row(zc[k]) == row; k++) {
-        ind_t const y = RSB_col(zc[k]) % n;
-        if (spa[y] > 0.0) {
-          c[k] += spa[y];
-          spa[y] = 0.0;
-        }
-      }
-    }
-
     /* XXX: Entries of /C/ are accumulated in temporary memory. The thinking
      *      here is that these memories will be stored *mostly* in cache. If
      *      that is the case, then *most* accumulation is done in cache. Then,
@@ -70,14 +60,12 @@ RSB_spgemm_csr_csr_v2(
      *      for this, so it may need to be hard-coded using intrinsics. This
      *      should be explored after proper benchmarking is implemented.
      */
-    for (ind_t j = 0; j < nnz; j++) {
+    for (ind_t j = 0; j < nnz; j++, cnnz++) {
       ind_t const col = RSB_col(map[j]);
       ind_t const y = col % n;
-      if (true && spa[y] > 0.0) {
-        zc[cnnz] = RSB_idx(row, col);
-        c[cnnz++] = spa[y];
-        spa[y] = 0.0;
-      }
+      zc[cnnz] = RSB_idx(row, col);
+      c[cnnz] = spa[y];
+      spa[y] = 0.0;
     }
   }
 
@@ -100,7 +88,6 @@ RSB_spgemm_cache_v2(
   ind_t const bnnz,
   ind_t const * const restrict zb,
   val_t const * const restrict b,
-  ind_t       cnnz,
   ind_t       * const restrict zc,
   val_t       * const restrict c,
   ind_t       * const restrict itmp,
@@ -153,7 +140,7 @@ RSB_spgemm_cache_v2(
   /* */
   return RSB_spgemm_csr_csr_v2(n,
                                annz, za_cache, a_cache,
-                                     zb_cache, b_cache,
-                               cnnz, zc,       c,
+                               bnnz, zb_cache, b_cache,
+                                     zc,       c,
                                itmp, vtmp);
 }
