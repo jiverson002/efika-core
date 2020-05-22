@@ -105,8 +105,8 @@ RSB_spgemm_cache_v2(
    */
 
   // FIXME: hard-code
-  static ind_t icache[3000];
-  static val_t vcache[3000];
+  static ind_t icache[4000];
+  static val_t vcache[4000];
 
   /* XXX: Allocation of cache
    *  +-----------+-----------+-----------+-----------+-----------
