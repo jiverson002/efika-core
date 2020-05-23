@@ -15,7 +15,9 @@
 //#include "efika/data/rcv1_10k.h"
 //#include "efika/data/sports_1x1.h"
 //#include "efika/data/youtube.h"
-#include "efika/data/youtube_256.h"
+//#include "efika/data/youtube_256.h"
+//#include "efika/data/youtube_512.h"
+#include "efika/data/youtube_1k.h"
 //#include "efika/data/youtube_8k.h"
 //#include "efika/data/youtube_10k.h"
 //#include "efika/data/youtube_50k.h"
@@ -26,7 +28,9 @@
 //#define DATASET         rcv1_10k
 //#define DATASET         sports_1x1
 //#define DATASET         youtube
-#define DATASET         youtube_256
+//#define DATASET         youtube_256
+//#define DATASET         youtube_512
+#define DATASET         youtube_1k
 //#define DATASET         youtube_8k
 //#define DATASET         youtube_10k
 //#define DATASET         youtube_50k
@@ -112,12 +116,18 @@ class BLAS : public ::testing::Test {
 
       C3_.nr = A_.nr;
       C3_.nc = A_.nr;
-      C3_.sa = static_cast<EFIKA_ind_t*>(calloc(RSB_sa_size(C3_.nr), sizeof(*C3_.ja)));
-      C3_.za = static_cast<EFIKA_ind_t*>(malloc(C3_.nr * C3_.nr * sizeof(*C3_.ja)));
+      C3_.sa = static_cast<EFIKA_ind_t*>(calloc(RSB_sa_size(C3_.nr), sizeof(*C3_.sa)));
+      C3_.za = static_cast<EFIKA_ind_t*>(malloc(C3_.nr * C3_.nr * sizeof(*C3_.za)));
       C3_.a  = static_cast<EFIKA_val_t*>(malloc(C3_.nr * C3_.nr * sizeof(*C3_.a)));
 
       if (!(C3_.sa && C3_.za && C3_.a))
         throw std::runtime_error("Could not allocate solution matrix C3");
+
+      zt_ = static_cast<EFIKA_ind_t*>(malloc(C3_.nr * C3_.nr * sizeof(*zt_)));
+      t_  = static_cast<EFIKA_val_t*>(malloc(C3_.nr * C3_.nr * sizeof(*t_)));
+
+      if (!(zt_ && t_))
+        throw std::runtime_error("Could not allocate scratch space");
 
       ih_ = static_cast<EFIKA_ind_t*>(calloc((RSB_size(A_.nr, A_.nc) + 1), sizeof(*ih_)));
       if (!ih_)
@@ -137,6 +147,8 @@ class BLAS : public ::testing::Test {
       EFIKA_Matrix_free(&C2_);
       EFIKA_Matrix_free(&C3_);
       EFIKA_Matrix_free(&C4_);
+      free(zt_);
+      free(t_);
       free(ih_);
       free(vh_);
     }
@@ -151,6 +163,8 @@ class BLAS : public ::testing::Test {
     EFIKA_Matrix C2_;
     EFIKA_Matrix C3_;
     EFIKA_Matrix C4_;
+    EFIKA_ind_t *zt_;
+    EFIKA_val_t *t_;
     EFIKA_ind_t *ih_;
     EFIKA_val_t *vh_;
 };
@@ -166,7 +180,7 @@ TEST_F(BLAS, SpGEMM) {
 
   efika_BLAS_spgemm_rsb_rsb(RSB_size(Z1_.nr, Z1_.nc), Z1_.nnz, Z1_.sa, Z1_.za,
                             Z1_.a, Z2_.nnz, Z2_.sa, Z2_.za, Z2_.a, &C3_.nnz,
-                            C3_.sa, C3_.za, C3_.a, ih_, vh_);
+                            C3_.sa, C3_.za, C3_.a, zt_, t_, ih_, vh_);
 
   C3_.mord = EFIKA_MORD_RSB;
   if (int err = EFIKA_Matrix_conv(&C3_, &C4_, EFIKA_MORD_CSR))
@@ -174,6 +188,10 @@ TEST_F(BLAS, SpGEMM) {
 
   std::cerr << ">>> " << C1_.ia[C1_.nr] << std::endl;
   std::cerr << ">>> " << C4_.ia[C4_.nr] << std::endl;
+
+  //for (EFIKA_ind_t i = 0; i < C4_.nr; i++)
+  //  for (EFIKA_ind_t j = C4_.ia[i]; j < C4_.ia[i + 1]; j++)
+  //    printf(">> %u %u\n", i, C4_.ja[j]);
 
   ASSERT_EQ(C1_.nr, C2_.nr);
   ASSERT_EQ(C1_.nc, C2_.nc);

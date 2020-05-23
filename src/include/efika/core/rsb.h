@@ -233,7 +233,7 @@ RSB_spgemm(int, ind_t,
            ind_t, ind_t, ind_t, ind_t const *, ind_t const *, val_t const *,
            ind_t, ind_t, ind_t, ind_t const *, ind_t const *, val_t const *,
            ind_t *, ind_t *, val_t *,
-           ind_t *, val_t *);
+           ind_t *, val_t *, ind_t *, val_t *);
 
 #ifdef __cplusplus
 }

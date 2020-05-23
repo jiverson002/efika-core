@@ -122,10 +122,12 @@ BLAS_spgemm_rsb_rsb(
   ind_t       * const restrict sc,
   ind_t       * const restrict zc,
   val_t       * const restrict c,
+  ind_t       * const restrict zt,
+  val_t       * const restrict t,
   ind_t       * const restrict itmp,
   val_t       * const restrict vtmp
 )
 {
   *cnnz = RSB_spgemm(0, n, 0, 0, annz, sa, za, a, 0, 0, bnnz, sb, zb, b, sc, zc,
-                     c, itmp, vtmp);
+                     c, zt, t, itmp, vtmp);
 }
