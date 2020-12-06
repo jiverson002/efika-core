@@ -17,9 +17,9 @@
 //#include "efika/data/youtube.h"
 //#include "efika/data/youtube_256.h"
 //#include "efika/data/youtube_512.h"
-#include "efika/data/youtube_1k.h"
+//#include "efika/data/youtube_1k.h"
 //#include "efika/data/youtube_8k.h"
-//#include "efika/data/youtube_10k.h"
+#include "efika/data/youtube_10k.h"
 //#include "efika/data/youtube_50k.h"
 
 //#define DATASET         bms_pos
@@ -30,9 +30,9 @@
 //#define DATASET         youtube
 //#define DATASET         youtube_256
 //#define DATASET         youtube_512
-#define DATASET         youtube_1k
+//#define DATASET         youtube_1k
 //#define DATASET         youtube_8k
-//#define DATASET         youtube_10k
+#define DATASET         youtube_10k
 //#define DATASET         youtube_50k
 #define xxdataset(d, v) d ## _ ## v
 #define xdataset(d, v)  xxdataset(d, v)
@@ -187,11 +187,16 @@ TEST_F(BLAS, SpGEMM) {
     throw std::runtime_error("Could not convert C3 to C4");
 
   std::cerr << ">>> " << C1_.ia[C1_.nr] << std::endl;
+  std::cerr << ">>> " << C2_.ia[C2_.nr] << std::endl;
+  std::cerr << ">>> " << C3_.nnz << std::endl;
   std::cerr << ">>> " << C4_.ia[C4_.nr] << std::endl;
-
-  //for (EFIKA_ind_t i = 0; i < C4_.nr; i++)
-  //  for (EFIKA_ind_t j = C4_.ia[i]; j < C4_.ia[i + 1]; j++)
-  //    printf(">> %u %u\n", i, C4_.ja[j]);
+  EFIKA_ind_t c1nnz = 0;
+  for (EFIKA_ind_t i = 0; i < C1_.nr; i++) {
+    for (EFIKA_ind_t j = C1_.ia[i]; j < C1_.ia[i + 1]; j++) {
+      c1nnz += (C1_.a[j] != 0.0);
+    }
+  }
+  std::cerr << ">>> " << c1nnz << std::endl;
 
   ASSERT_EQ(C1_.nr, C2_.nr);
   ASSERT_EQ(C1_.nc, C2_.nc);

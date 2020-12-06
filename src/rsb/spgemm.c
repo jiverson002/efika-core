@@ -8,6 +8,26 @@
 #define SPLIT_SIZE 5000
 
 /*----------------------------------------------------------------------------*/
+/* helper function for qsort */
+/*----------------------------------------------------------------------------*/
+static int
+cmp_z(ind_t const a, ind_t const b)
+{
+  ind_t const ar = RSB_row(a);
+  ind_t const ac = RSB_col(a);
+  ind_t const br = RSB_row(b);
+  ind_t const bc = RSB_col(b);
+#define less_msb(x, y) ((x) < (y) && (x) < ((x) ^ (y)))
+
+  if (less_msb(ar ^ br, ac ^ bc))
+    return ac < bc ? -1 : 1;
+  else
+    return ar < br ? -1 : 1;
+
+#undef less_msb
+}
+
+/*----------------------------------------------------------------------------*/
 /*! */
 /*----------------------------------------------------------------------------*/
 static inline bool
@@ -114,40 +134,6 @@ RSB_spgemm_csr_csc_v1( /* sparse-accumulator */
   val_t       * const restrict spa
 )
 {
-  for (ind_t i = 1; i < a_nnz; i++) {
-    if (RSB_row(a_za[i]) == RSB_row(a_za[i - 1])) {
-      if (RSB_col(a_za[i]) == RSB_col(a_za[i - 1])) {
-        fprintf(stderr, "a.0\n"); abort();
-      } else if (RSB_col(a_za[i]) < RSB_col(a_za[i - 1])) {
-        fprintf(stderr, "a.1\n"); abort();
-      }
-    } else if (RSB_row(a_za[i]) < RSB_row(a_za[i - 1])) {
-      fprintf(stderr, "a.2\n"); abort();
-    }
-  }
-  for (ind_t i = 1; i < b_nnz; i++) {
-    if (RSB_col(b_za[i]) == RSB_col(b_za[i - 1])) {
-      if (RSB_row(b_za[i]) == RSB_row(b_za[i - 1])) {
-        fprintf(stderr, "b.0\n"); abort();
-      } else if (RSB_row(b_za[i]) < RSB_row(b_za[i - 1])) {
-        fprintf(stderr, "b.1\n"); abort();
-      }
-    } else if (RSB_col(b_za[i]) < RSB_col(b_za[i - 1])) {
-      fprintf(stderr, "b.2\n"); abort();
-    }
-  }
-  for (ind_t i = 1; i < c_nnz; i++) {
-    if (RSB_row(c_za[i]) == RSB_row(c_za[i - 1])) {
-      if (RSB_col(c_za[i]) == RSB_col(c_za[i - 1])) {
-        fprintf(stderr, "c.0\n"); abort();
-      } else if (RSB_col(c_za[i]) < RSB_col(c_za[i - 1])) {
-        fprintf(stderr, "c.1\n"); abort();
-      }
-    } else if (RSB_row(c_za[i]) < RSB_row(c_za[i - 1])) {
-      fprintf(stderr, "c.2\n"); abort();
-    }
-  }
-
   for (ind_t i = 0, k = 0; i < a_nnz;) {
     ind_t const r = RSB_row(a_za[i]);
 
@@ -343,10 +329,10 @@ RSB_spgemm_cache(
    *  the cache. The equation, cache size - alpha * 2 * n, will determine the
    *  amount of cache reserved for /A/ and /B/.
    */
-  ind_t * const za_cache  = icache;
-  val_t * const a_cache   = vcache;
-  ind_t * const zb_cache  = za_cache + annz;
-  val_t * const b_cache   = a_cache + annz;
+  ind_t * const za_cache = icache;
+  val_t * const a_cache  = vcache;
+  ind_t * const zb_cache = za_cache + annz;
+  val_t * const b_cache  = a_cache + annz;
 
   /* */
   RSB_rsbcsr(n, annz, za, a, itmp, za_cache, a_cache);
@@ -426,6 +412,38 @@ RSB_spgemm_cache_unused(
 /*----------------------------------------------------------------------------*/
 /*! */
 /*----------------------------------------------------------------------------*/
+__attribute__((unused)) static void
+RSB_check_order(
+  char const * const lbl,
+  ind_t const n,
+  ind_t const annz,
+  ind_t const * const restrict za
+)
+{
+#if 1
+  for (ind_t i = 1; i < annz; i++) {
+    if (RSB_row(za[i]) < RSB_row(za[i - 1])) {
+      fprintf(stderr, "/%s$/ is not ordered properly %u %u %u %u %u %u\n",
+        lbl, n, i, RSB_row(za[i - 1]), RSB_col(za[i - 1]), RSB_row(za[i]),
+        RSB_col(za[i]));
+      abort();
+    }
+  }
+#else
+  for (ind_t i = 1; i < annz; i++) {
+    if (cmp_z(za[i - 1], za[i]) >= 0) {
+      fprintf(stderr, "/%s/ is not ordered properly %u %u %u %u %u %u\n",
+        lbl, n, i, RSB_row(za[i - 1]), RSB_col(za[i - 1]), RSB_row(za[i]),
+        RSB_col(za[i]));
+      abort();
+    }
+  }
+#endif
+}
+
+/*----------------------------------------------------------------------------*/
+/*! */
+/*----------------------------------------------------------------------------*/
 ind_t
 RSB_spgemm_merge(
   ind_t const n,
@@ -444,36 +462,14 @@ RSB_spgemm_merge(
   ind_t j = 0;
   ind_t cnnz = 0;
 
-  fprintf(stderr, "vvvvv\n");
-
-  if (annz > 1) {
-    for (ind_t i = 1; i < annz; i++) {
-      if (RSB_row(za[i]) < RSB_row(za[i - 1])) {
-        fprintf(stderr, "/A/ is not ordered properly %u %u\n", RSB_row(za[i]),
-          RSB_row(za[i - 1]));
-        abort();
-      }
-    }
-  }
-
-  if (bnnz > 1) {
-    for (ind_t i = 1; i < bnnz; i++) {
-      if (RSB_row(zb[i]) < RSB_row(zb[i - 1])) {
-        fprintf(stderr, "/B/ is not ordered properly\n");
-        abort();
-      }
-    }
-  }
+  //RSB_check_order("A", n, annz, za);
+  //RSB_check_order("B", n, bnnz, zb);
 
   for (; i < annz && j < bnnz;) {
     if (RSB_row(za[i]) < RSB_row(zb[j])) {
-      if (RSB_row(za[i]) == 995 && RSB_col(za[i]) == 995)
-        fprintf(stderr, "/A/ %u %u %u %u\n", i, j, annz, bnnz);
       zc[cnnz] = za[i];
       c[cnnz++] = a[i++];
     } else if (RSB_row(za[i]) > RSB_row(zb[j])) {
-      if (RSB_row(zb[j]) == 995 && RSB_col(zb[j]) == 995)
-        fprintf(stderr, "/B/ %u %u %u %u\n", i, j, annz, bnnz);
       zc[cnnz] = zb[j];
       c[cnnz++] = b[j++];
     } else {
@@ -489,8 +485,6 @@ RSB_spgemm_merge(
       /* merge values from row of block B with sparse-accumulator */
       for (; j < bnnz && RSB_row(zb[j]) == row; j++) {
         ind_t const y = RSB_col(zb[j]) % n;
-        if (RSB_row(zb[j]) == 995 && RSB_col(zb[j]) == 995)
-          fprintf(stderr, "/MERGE/ %u %u %u %u\n", i, j, annz, bnnz);
         zc[cnnz] = zb[j];
         c[cnnz++] = b[j] + spa[y];
         spa[y] = 0.0;
@@ -508,48 +502,21 @@ RSB_spgemm_merge(
     }
   }
 
-  if (cnnz > 1) {
-    for (ind_t i = 1; i < cnnz; i++) {
-      if (RSB_row(zc[i]) < RSB_row(zc[i - 1])) {
-        fprintf(stderr, "/C1/ is not ordered properly\n");
-        abort();
-      }
-    }
-  }
+  //RSB_check_order("C1", n, cnnz, zc);
 
   for (; i < annz; i++, cnnz++) {
-    if (RSB_row(za[i]) == 995 && RSB_col(za[i]) == 995)
-      fprintf(stderr, "/A2/ %u %u %u %u\n", i, j, annz, bnnz);
     zc[cnnz] = za[i];
     c[cnnz] = a[i];
   }
 
-  if (cnnz > 1) {
-    for (ind_t i = 1; i < cnnz; i++) {
-      if (RSB_row(zc[i]) < RSB_row(zc[i - 1])) {
-        fprintf(stderr, "/C2/ is not ordered properly\n");
-        abort();
-      }
-    }
-  }
+  //RSB_check_order("C2", n, cnnz, zc);
 
   for (; j < bnnz; j++, cnnz++) {
-    if (RSB_row(zb[j]) == 995 && RSB_col(zb[j]) == 995)
-      fprintf(stderr, "/B2/ %u %u %u %u\n", i, j, annz, bnnz);
     zc[cnnz] = zb[j];
     c[cnnz] = b[j];
   }
 
-  if (cnnz > 1) {
-    for (ind_t i = 1; i < cnnz; i++) {
-      if (RSB_row(zc[i]) < RSB_row(zc[i - 1])) {
-        fprintf(stderr, "/C3/ is not ordered properly\n");
-        abort();
-      }
-    }
-  }
-
-  fprintf(stderr, "^^^^^\n");
+  //RSB_check_order("C3", n, cnnz, zc);
 
   return cnnz;
 }
@@ -582,18 +549,18 @@ RSB_spgemm(
   val_t       * const restrict vtmp
 )
 {
-  if (lvl <= LEVEL) {
+  /*if (lvl <= LEVEL) {
     for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
     fprintf(stderr, "%6u x %6u // (%u, %u) (%u, %u) // %u, %u // %p, %p\n", n,
             n, a_ro, a_co, b_ro, b_co, a_nnz, b_nnz, (void*)c_za, (void*)t_za);
-  }
+  }*/
 
   /* shortcut if either matrix is all zeros */
   if (0 == a_nnz || 0 == b_nnz) {
-    if (lvl <= LEVEL) {
+    /*if (lvl <= LEVEL) {
       for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
       fprintf(stderr, "                0:> 0\n");
-    }
+    }*/
     return 0;
   }
 
@@ -612,19 +579,12 @@ RSB_spgemm(
                                        c_za, c_a,
                                        itmp, vtmp);
 
-    if (nnz > 1) {
-      for (ind_t i = 1; i < nnz; i++) {
-        if (RSB_row(c_za[i]) < RSB_row(c_za[i - 1])) {
-          fprintf(stderr, "/C/ is not ordered properly after cache\n");
-          abort();
-        }
-      }
-    }
+    //RSB_check_order("C", n, nnz, c_za);
 #endif
-    if (lvl <= LEVEL) {
+    /*if (lvl <= LEVEL) {
       for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
       fprintf(stderr, "                1:> %u\n", nnz);
-    }
+    }*/
     return nnz;
   }
 
@@ -706,12 +666,12 @@ RSB_spgemm(
   ind_t * const c21_sa = c12_sa + nsa;
   ind_t * const c22_sa = c21_sa + nsa;
 
-  if (lvl <= LEVEL) {
+  /*if (lvl <= LEVEL) {
     for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
     fprintf(stderr, "C11\n");
     for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
     fprintf(stderr, "===\n");
-  }
+  }*/
 
   /* C1 := A11 * B11 */
   ind_t nnz1 = RSB_spgemm(lvl + 1, nn,
@@ -719,28 +679,16 @@ RSB_spgemm(
                           b_ro,  b_co,  b11_nnz, b11_sa, b11_za, b11_a,
                           c11_sa, t_za, t_a,
                           c_za, c_a, itmp, vtmp);
-  if (nnz1 > 1) {
-    for (ind_t i = 1; i < nnz1; i++) {
-      if (RSB_row(t_za[i]) < RSB_row(t_za[i - 1])) {
-        fprintf(stderr, "/T11/ is not ordered properly %u %u\n", n, nn);
-        abort();
-      }
-    }
-  }
+  //RSB_check_order("T11", nn, nnz1, t_za);
+
   /* C2 := A12 * B21 */
   ind_t nnz2 = RSB_spgemm(lvl + 1, nn,
                           a_ro,  a_csp, a12_nnz, a12_sa, a12_za, a12_a,
                           b_rsp, b_co,  b21_nnz, b21_sa, b21_za, b21_a,
                           c11_sa, t_za + nnz1, t_a + nnz1,
                           c_za + nnz1, c_a + nnz1, itmp, vtmp);
-  if (nnz2 > 1) {
-    for (ind_t i = nnz1 + 1; i < nnz1 + nnz2; i++) {
-      if (RSB_row(t_za[i]) < RSB_row(t_za[i - 1])) {
-        fprintf(stderr, "/T12/ is not ordered properly\n");
-        abort();
-      }
-    }
-  }
+  //RSB_check_order("T12", nn, nnz2, t_za + nnz1);
+
   /* C11 := C1 + C2 */
   c_sp[0] = RSB_spgemm_merge(nn,
                              nnz1, t_za, t_a,
@@ -748,12 +696,12 @@ RSB_spgemm(
                              c_za, c_a,
                              vtmp);
 
-  if (lvl <= LEVEL) {
+  /*if (lvl <= LEVEL) {
     for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
     fprintf(stderr, "C12\n");
     for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
     fprintf(stderr, "===\n");
-  }
+  }*/
 
   /* C1 := A11 * B12 */
   nnz1 = RSB_spgemm(lvl + 1, nn,
@@ -761,28 +709,16 @@ RSB_spgemm(
                     b_ro,  b_csp, b12_nnz, b12_sa, b12_za, b12_a,
                     c12_sa, t_za + c_sp[0], t_a + c_sp[0],
                     c_za + c_sp[0], c_a + c_sp[0], itmp, vtmp);
-  if (nnz1 > 1) {
-    for (ind_t i = c_sp[0] + 1; i < c_sp[0] + nnz1; i++) {
-      if (RSB_row(t_za[i]) < RSB_row(t_za[i - 1])) {
-        fprintf(stderr, "/T21/ is not ordered properly\n");
-        abort();
-      }
-    }
-  }
+  //RSB_check_order("T21", nn, nnz1, t_za + c_sp[0]);
+
   /* C2 := A12 * B22 */
   nnz2 = RSB_spgemm(lvl + 1, nn,
                     a_ro,  a_csp, a12_nnz, a12_sa, a12_za, a12_a,
                     b_rsp, b_csp, b22_nnz, b22_sa, b22_za, b22_a,
                     c12_sa, t_za + c_sp[0] + nnz1, t_a + c_sp[0] + nnz1,
                     c_za + c_sp[0] + nnz1, c_a + c_sp[0] + nnz1, itmp, vtmp);
-  if (nnz2 > 1) {
-    for (ind_t i = c_sp[0] + nnz1 + 1; i < c_sp[0] + nnz1 + nnz2; i++) {
-      if (RSB_row(t_za[i]) < RSB_row(t_za[i - 1])) {
-        fprintf(stderr, "/T22/ is not ordered properly\n");
-        abort();
-      }
-    }
-  }
+  //RSB_check_order("T22", nn, nnz2, t_za + c_sp[0] + nnz1);
+
   /* C12 := C1 + C2 */
   c_sp[1] = c_sp[0] + RSB_spgemm_merge(nn,
                                        nnz1, t_za + c_sp[0], t_a + c_sp[0],
@@ -790,12 +726,12 @@ RSB_spgemm(
                                        c_za + c_sp[0], c_a + c_sp[0],
                                        vtmp);
 
-  if (lvl <= LEVEL) {
+  /*if (lvl <= LEVEL) {
     for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
     fprintf(stderr, "C21\n");
     for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
     fprintf(stderr, "===\n");
-  }
+  }*/
 
   /* C1 := A21 * B11 */
   nnz1 = RSB_spgemm(lvl + 1, nn,
@@ -803,28 +739,16 @@ RSB_spgemm(
                     b_ro,  b_co,  b11_nnz, b11_sa, b11_za, b11_a,
                     c21_sa, t_za + c_sp[1], t_a + c_sp[1],
                     c_za + c_sp[1], c_a + c_sp[1], itmp, vtmp);
-  if (nnz1 > 1) {
-    for (ind_t i = c_sp[1] + 1; i < c_sp[1] + nnz1; i++) {
-      if (RSB_row(t_za[i]) < RSB_row(t_za[i - 1])) {
-        fprintf(stderr, "/T31/ is not ordered properly\n");
-        abort();
-      }
-    }
-  }
+  //RSB_check_order("T31", nn, nnz1, t_za + c_sp[1]);
+
   /* C2 := A22 * B21 */
   nnz2 = RSB_spgemm(lvl + 1, nn,
                     a_rsp, a_csp, a22_nnz, a22_sa, a22_za, a22_a,
                     b_rsp, b_co,  b21_nnz, b21_sa, b21_za, b21_a,
                     c21_sa, t_za + c_sp[1] + nnz1, t_a + c_sp[1] + nnz1,
                     c_za + c_sp[1] + nnz1, c_a + c_sp[1] + nnz1, itmp, vtmp);
-  if (nnz2 > 1) {
-    for (ind_t i = c_sp[1] + nnz1 + 1; i < c_sp[1] + nnz1 + nnz2; i++) {
-      if (RSB_row(t_za[i]) < RSB_row(t_za[i - 1])) {
-        fprintf(stderr, "/T32/ is not ordered properly\n");
-        abort();
-      }
-    }
-  }
+  //RSB_check_order("T32", nn, nnz2, t_za + c_sp[1] + nnz1);
+
   /* C12 := C1 + C2 */
   c_sp[2] = c_sp[1] + RSB_spgemm_merge(nn,
                                        nnz1, t_za + c_sp[1], t_a + c_sp[1],
@@ -832,12 +756,12 @@ RSB_spgemm(
                                        c_za + c_sp[1], c_a + c_sp[1],
                                        vtmp);
 
-  if (lvl <= LEVEL) {
+  /*if (lvl <= LEVEL) {
     for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
     fprintf(stderr, "C22\n");
     for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
     fprintf(stderr, "===\n");
-  }
+  }*/
 
   /* C1 := A21 * B12 */
   nnz1 = RSB_spgemm(lvl + 1, nn,
@@ -845,28 +769,16 @@ RSB_spgemm(
                     b_ro,  b_csp, b12_nnz, b12_sa, b12_za, b12_a,
                     c22_sa, t_za + c_sp[2], t_a + c_sp[2],
                     c_za + c_sp[2], c_a + c_sp[2], itmp, vtmp);
-  if (nnz1 > 1) {
-    for (ind_t i = c_sp[2] + 1; i < c_sp[2] + nnz1; i++) {
-      if (RSB_row(t_za[i]) < RSB_row(t_za[i - 1])) {
-        fprintf(stderr, "/T41/ is not ordered properly\n");
-        abort();
-      }
-    }
-  }
+  //RSB_check_order("T41", nn, nnz1, t_za + c_sp[2]);
+
   /* C2 := A22 * B22 */
   nnz2 = RSB_spgemm(lvl + 1, nn,
                     a_rsp, a_csp, a22_nnz, a22_sa, a22_za, a22_a,
                     b_rsp, b_csp, b22_nnz, b22_sa, b22_za, b22_a,
                     c22_sa, t_za + c_sp[2] + nnz1, t_a + c_sp[2] + nnz1,
-                    c_za + c_sp[2], c_a + c_sp[2], itmp, vtmp);
-  if (nnz2 > 1) {
-    for (ind_t i = c_sp[2] + nnz1 + 1; i < c_sp[2] + nnz1 + nnz2; i++) {
-      if (RSB_row(t_za[i]) < RSB_row(t_za[i - 1])) {
-        fprintf(stderr, "/T42/ is not ordered properly\n");
-        abort();
-      }
-    }
-  }
+                    c_za + c_sp[2] + nnz1, c_a + c_sp[2] + nnz1, itmp, vtmp);
+  //RSB_check_order("T42", nn, nnz2, t_za + c_sp[2] + nnz1);
+
   /* C22 := C1 + C2 */
   ind_t cnnz = c_sp[2] + RSB_spgemm_merge(nn,
                                           nnz1, t_za + c_sp[2], t_a + c_sp[2],
@@ -874,14 +786,43 @@ RSB_spgemm(
                                           c_za + c_sp[2], c_a + c_sp[2],
                                           vtmp);
 
+  /* FIXME: At this point, four blocks have been merge separately into c at
+   * locations:
+   *
+   *  C11: c_za           -- c_za + c_sp[0]
+   *  C12: c_za + c_sp[0] -- c_za + c_sp[1]
+   *  C21: c_za + c_sp[1] -- c_za + c_sp[2]
+   *  C22: c_za + c_sp[2] -- c_za + cnnz
+   *
+   * The storage in these four blocks is row-major order. I guess we need to
+   * convert it back to rsb?
+   */
+  nnz1 = RSB_spgemm_merge(n,
+                          c_sp[0], c_za, c_a,
+                          c_sp[1] - c_sp[0], c_za + c_sp[0], c_a + c_sp[0],
+                          t_za, t_a,
+                          vtmp);
+
+  nnz2 = RSB_spgemm_merge(n,
+                          c_sp[2] - c_sp[1], c_za + c_sp[1], c_a + c_sp[1],
+                          cnnz - c_sp[2], c_za + c_sp[2], c_a + c_sp[2],
+                          t_za + nnz1, t_a + nnz1,
+                          vtmp);
+
+  cnnz = RSB_spgemm_merge(n,
+                          nnz1, t_za, t_a,
+                          nnz2, t_za + nnz1, t_a + nnz1,
+                          c_za, c_a,
+                          vtmp);
+
   if (RSB_is_split(n)) {
     c_sa[0] = c_sp[0]; c_sa[1] = c_sp[1]; c_sa[2] = c_sp[2];
   }
 
-  if (lvl <= LEVEL) {
+  /*if (lvl <= LEVEL) {
     for (int i = 0; i < lvl; i++) fprintf(stderr, "  ");
     fprintf(stderr, "                2:> %u\n", cnnz);
-  }
+  }*/
 
   return cnnz;
 }

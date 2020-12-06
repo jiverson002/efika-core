@@ -7,14 +7,15 @@
 
 #include "efika/core/blas.h"
 #include "efika/core/rsb.h"
-#include "efika/data/rcv1_10k.h"
 //#include "efika/data/bms_pos.h"
 //#include "efika/data/example.h"
 //#include "efika/data/groceries.h"
-//#include "efika/data/rcv1_10k.h"
+#include "efika/data/rcv1_10k.h"
 //#include "efika/data/sports_1x1.h"
 //#include "efika/data/youtube.h"
-#include "efika/data/youtube_256.h"
+//#include "efika/data/youtube_256.h"
+//#include "efika/data/youtube_512.h"
+//#include "efika/data/youtube_1k.h"
 //#include "efika/data/youtube_8k.h"
 //#include "efika/data/youtube_10k.h"
 //#include "efika/data/youtube_50k.h"
@@ -22,10 +23,12 @@
 //#define DATASET         bms_pos
 //#define DATASET         example
 //#define DATASET         groceries
-//#define DATASET         rcv1_10k
+#define DATASET         rcv1_10k
 //#define DATASET         sports_1x1
 //#define DATASET         youtube
-#define DATASET         youtube_256
+//#define DATASET         youtube_256
+//#define DATASET         youtube_512
+//#define DATASET         youtube_1k
 //#define DATASET         youtube_8k
 //#define DATASET         youtube_10k
 //#define DATASET         youtube_50k
@@ -111,12 +114,18 @@ class SpGEMMFixture : public ::celero::TestFixture {
 
       C3_.nr = A_.nr;
       C3_.nc = A_.nr;
-      C3_.sa = static_cast<EFIKA_ind_t*>(calloc(RSB_sa_size(C3_.nr), sizeof(*C3_.ja)));
-      C3_.za = static_cast<EFIKA_ind_t*>(malloc(C3_.nr * C3_.nr * sizeof(*C3_.ja)));
+      C3_.sa = static_cast<EFIKA_ind_t*>(calloc(RSB_sa_size(C3_.nr), sizeof(*C3_.sa)));
+      C3_.za = static_cast<EFIKA_ind_t*>(malloc(C3_.nr * C3_.nr * sizeof(*C3_.za)));
       C3_.a  = static_cast<EFIKA_val_t*>(malloc(C3_.nr * C3_.nr * sizeof(*C3_.a)));
 
       if (!(C3_.sa && C3_.za && C3_.a))
         throw std::runtime_error("Could not allocate solution matrix C3");
+
+      zt_ = static_cast<EFIKA_ind_t*>(malloc(C3_.nr * C3_.nr * sizeof(*zt_)));
+      t_  = static_cast<EFIKA_val_t*>(malloc(C3_.nr * C3_.nr * sizeof(*t_)));
+
+      if (!(zt_ && t_))
+        throw std::runtime_error("Could not allocate scratch space");
 
       ih_ = static_cast<EFIKA_ind_t*>(calloc((RSB_size(A_.nr, A_.nc) + 1), sizeof(*ih_)));
       if (!ih_)
@@ -136,6 +145,8 @@ class SpGEMMFixture : public ::celero::TestFixture {
       EFIKA_Matrix_free(&C2_);
       EFIKA_Matrix_free(&C3_);
       EFIKA_Matrix_free(&C4_);
+      free(zt_);
+      free(t_);
       free(ih_);
       free(vh_);
     }
@@ -150,26 +161,29 @@ class SpGEMMFixture : public ::celero::TestFixture {
     EFIKA_Matrix C2_;
     EFIKA_Matrix C3_;
     EFIKA_Matrix C4_;
+    EFIKA_ind_t *zt_;
+    EFIKA_val_t *t_;
     EFIKA_ind_t *ih_;
     EFIKA_val_t *vh_;
 };
 
 } // namespace
 
-BASELINE_F(SpGEMM, CSR_CSC, SpGEMMFixture, 30, 10)
+BASELINE_F(SpGEMM, CSR_CSC, SpGEMMFixture, 1, 1)
 {
   efika_BLAS_spgemm_csr_csc(A_.nr, B1_.nr, A_.ia, A_.ja, A_.a, B1_.ia, B1_.ja,
                             B1_.a, C1_.ia, C1_.ja, C1_.a, vh_);
 }
 
-BENCHMARK_F(SpGEMM, CSR_CSR, SpGEMMFixture, 30, 10)
+BENCHMARK_F(SpGEMM, CSR_CSR, SpGEMMFixture, 1, 1)
 {
   efika_BLAS_spgemm_csr_csr(A_.nr, A_.ia, A_.ja, A_.a, B2_.ia, B2_.ja, B2_.a,
                             C2_.ia, C2_.ja, C2_.a, vh_);
 }
 
-BENCHMARK_F(SpGEMM, RSB_RSB, SpGEMMFixture, 30, 10)
+BENCHMARK_F(SpGEMM, RSB_RSB, SpGEMMFixture, 1, 1)
 {
-  RSB_spgemm_cache(RSB_size(Z1_.nr, Z1_.nc), Z1_.nnz, Z1_.za, Z1_.a, Z2_.nnz,
-                   Z2_.za, Z2_.a, C3_.za, C3_.a, ih_, vh_);
+  efika_BLAS_spgemm_rsb_rsb(RSB_size(Z1_.nr, Z1_.nc), Z1_.nnz, Z1_.sa, Z1_.za,
+                            Z1_.a, Z2_.nnz, Z2_.sa, Z2_.za, Z2_.a, &C3_.nnz,
+                            C3_.sa, C3_.za, C3_.a, zt_, t_, ih_, vh_);
 }
