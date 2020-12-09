@@ -3,7 +3,6 @@
 
 #include "efika/core.h"
 
-#include "efika/core/export.h"
 #include "efika/core/pp.h"
 #include "efika/core/rename.h"
 
@@ -176,7 +175,7 @@ Matrix_sort_val(Matrix * const M, int const sort)
 /*----------------------------------------------------------------------------*/
 /*! Function to sort non-zero lists for each row.                             */
 /*----------------------------------------------------------------------------*/
-EFIKA_CORE_EXPORT int
+EFIKA_EXPORT int
 Matrix_sort(Matrix * const M, int const flags)
 {
   switch (flags & TYPE_FLAGS) {

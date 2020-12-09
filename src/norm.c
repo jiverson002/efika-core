@@ -2,14 +2,13 @@
 #include "efika/core.h"
 
 #include "efika/core/blas.h"
-#include "efika/core/export.h"
 #include "efika/core/pp.h"
 #include "efika/core/rename.h"
 
 /*----------------------------------------------------------------------------*/
 /*! Normalizes the rows of the matrix to be unit length. */
 /*----------------------------------------------------------------------------*/
-EFIKA_CORE_EXPORT int
+EFIKA_EXPORT int
 Matrix_norm(Matrix * const M)
 {
   /* unpack /M/ */

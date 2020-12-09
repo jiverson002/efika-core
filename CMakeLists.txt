@@ -13,11 +13,6 @@ include(GenerateExportHeader)
 add_library(${PROJECT_NAME}     OBJECT)
 add_library(${PROJECT_NAME}-sdk INTERFACE)
 
-generate_export_header(${PROJECT_NAME}
-  EXPORT_FILE_NAME efika/core/export.h
-  BASE_NAME        core
-  PREFIX_NAME      EFIKA_)
-
 target_sources(${PROJECT_NAME}
   PRIVATE src/comp.c src/copy.c src/cord.c src/free.c src/globals.c src/iidx.c
           src/init.c src/norm.c src/perm.c src/rord.c src/sort.c src/test.c
@@ -27,14 +22,31 @@ target_sources(${PROJECT_NAME}
 
 target_include_directories(${PROJECT_NAME}
   PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/include
-  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/include
-          ${CMAKE_CURRENT_BINARY_DIR})
+          ${CMAKE_CURRENT_BINARY_DIR}/include
+  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/include)
 
 target_include_directories(${PROJECT_NAME}-sdk
   INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src/include)
 
 add_library(Efika::core    ALIAS ${PROJECT_NAME})
 add_library(EfikaSDK::core ALIAS ${PROJECT_NAME}-sdk)
+
+#-------------------------------------------------------------------------------
+# EXPORT configuration
+#-------------------------------------------------------------------------------
+generate_export_header(${PROJECT_NAME}
+  BASE_NAME        EFIKA
+  EXPORT_FILE_NAME include/efika/core/export.h)
+
+if(BUILD_SHARED_LIBS)
+  target_compile_definitions(${PROJECT_NAME}
+    PRIVATE efika_core_EXPORTS)
+  target_compile_definitions(${PROJECT_NAME}-sdk
+    INTERFACE efika_core_EXPORTS)
+else()
+  target_compile_definitions(${PROJECT_NAME}
+    PUBLIC EFIKA_STATIC_DEFINE)
+endif()
 
 #-------------------------------------------------------------------------------
 # Unit test configuration

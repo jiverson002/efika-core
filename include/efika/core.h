@@ -2,6 +2,8 @@
 #ifndef EFIKA_CORE_H
 #define EFIKA_CORE_H 1
 
+#include "efika/core/export.h"
+
 #ifdef __cplusplus
 # ifndef restrict
 #   define undef_restrict
@@ -25,8 +27,8 @@ typedef float    EFIKA_val_t;
 /*----------------------------------------------------------------------------*/
 /*! Environment settings. */
 /*----------------------------------------------------------------------------*/
-extern int EFIKA_debug;
-extern int EFIKA_verbose;
+EFIKA_EXPORT extern int EFIKA_debug;
+EFIKA_EXPORT extern int EFIKA_verbose;
 
 /*----------------------------------------------------------------------------*/
 /*! Sparse matrix data structure */
@@ -77,17 +79,17 @@ enum EFIKA_Flag {
 extern "C" {
 #endif
 
-int  EFIKA_Matrix_comp(EFIKA_Matrix *);
-int  EFIKA_Matrix_copy(EFIKA_Matrix const *, EFIKA_Matrix *);
-int  EFIKA_Matrix_cord(EFIKA_Matrix *, int);
-void EFIKA_Matrix_free(EFIKA_Matrix *);
-int  EFIKA_Matrix_iidx(EFIKA_Matrix const *, EFIKA_Matrix *);
-int  EFIKA_Matrix_init(EFIKA_Matrix *);
-int  EFIKA_Matrix_norm(EFIKA_Matrix *);
-int  EFIKA_Matrix_perm(EFIKA_Matrix *, EFIKA_ind_t *, EFIKA_ind_t *);
-int  EFIKA_Matrix_rord(EFIKA_Matrix *, int);
-int  EFIKA_Matrix_sort(EFIKA_Matrix *, int);
-int  EFIKA_Matrix_test(EFIKA_Matrix const *);
+EFIKA_EXPORT int  EFIKA_Matrix_comp(EFIKA_Matrix *);
+EFIKA_EXPORT int  EFIKA_Matrix_copy(EFIKA_Matrix const *, EFIKA_Matrix *);
+EFIKA_EXPORT int  EFIKA_Matrix_cord(EFIKA_Matrix *, int);
+EFIKA_EXPORT void EFIKA_Matrix_free(EFIKA_Matrix *);
+EFIKA_EXPORT int  EFIKA_Matrix_iidx(EFIKA_Matrix const *, EFIKA_Matrix *);
+EFIKA_EXPORT int  EFIKA_Matrix_init(EFIKA_Matrix *);
+EFIKA_EXPORT int  EFIKA_Matrix_norm(EFIKA_Matrix *);
+EFIKA_EXPORT int  EFIKA_Matrix_perm(EFIKA_Matrix *, EFIKA_ind_t *, EFIKA_ind_t *);
+EFIKA_EXPORT int  EFIKA_Matrix_rord(EFIKA_Matrix *, int);
+EFIKA_EXPORT int  EFIKA_Matrix_sort(EFIKA_Matrix *, int);
+EFIKA_EXPORT int  EFIKA_Matrix_test(EFIKA_Matrix const *);
 
 #ifdef __cplusplus
 }

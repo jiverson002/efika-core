@@ -2,7 +2,6 @@
 #include "efika/core.h"
 
 #include "efika/core/blas.h"
-#include "efika/core/export.h"
 #include "efika/core/gc.h"
 #include "efika/core/rename.h"
 
@@ -13,7 +12,7 @@
  * \param I Inverted index
  */
 /*----------------------------------------------------------------------------*/
-EFIKA_CORE_EXPORT int
+EFIKA_EXPORT int
 Matrix_iidx(Matrix const * const M, Matrix * const I)
 {
   /*==========================================================================*/

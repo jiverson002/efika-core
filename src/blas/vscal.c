@@ -2,12 +2,11 @@
 #include "efika/core.h"
 
 #include "efika/core/blas.h"
-#include "efika/core/export.h"
 
 /*----------------------------------------------------------------------------*/
 /*! Multiply a vector x by a scalar and store in the vector x. */
 /*----------------------------------------------------------------------------*/
-EFIKA_CORE_EXPORT void
+void
 BLAS_vscal(
   ind_t const n,
   val_t const a,

@@ -3,7 +3,6 @@
 
 #include "efika/core.h"
 
-#include "efika/core/export.h"
 #include "efika/core/gc.h"
 #include "efika/core/pp.h"
 #include "efika/core/rename.h"
@@ -103,7 +102,7 @@ cord_deg(Matrix * const M, int const order)
 /*----------------------------------------------------------------------------*/
 /*! Function to re-order columns of a matrix. */
 /*----------------------------------------------------------------------------*/
-EFIKA_CORE_EXPORT int
+EFIKA_EXPORT int
 Matrix_cord(Matrix * const m, int const flags)
 {
   switch (flags & TYPE_FLAGS) {

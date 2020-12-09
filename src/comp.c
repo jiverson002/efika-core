@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: MIT */
 #include "efika/core.h"
 
-#include "efika/core/export.h"
 #include "efika/core/gc.h"
 #include "efika/core/pp.h"
 #include "efika/core/rename.h"
@@ -9,7 +8,7 @@
 /*----------------------------------------------------------------------------*/
 /*! Compacts the column-space of the matrix by removing empty columns. */
 /*----------------------------------------------------------------------------*/
-EFIKA_CORE_EXPORT int
+EFIKA_EXPORT int
 Matrix_comp(Matrix * const M)
 {
   /* ...garbage collected function... */

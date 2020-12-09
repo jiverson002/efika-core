@@ -2,13 +2,12 @@
 #include "efika/core.h"
 
 #include "efika/core/blas.h"
-#include "efika/core/export.h"
 
 /*----------------------------------------------------------------------------*/
 /*! Dot product of a sparse vector x in compressed-vector storage mode and a
  *  sparse vector y in full-vector storage mode. */
 /*----------------------------------------------------------------------------*/
-EFIKA_CORE_EXPORT val_t
+val_t
 BLAS_vdoti(
   ind_t const nz,
   val_t const * const restrict x,

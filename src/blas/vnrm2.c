@@ -4,12 +4,11 @@
 #include "efika/core.h"
 
 #include "efika/core/blas.h"
-#include "efika/core/export.h"
 
 /*----------------------------------------------------------------------------*/
 /*! Compute the Euclidean length (l_2 norm) of vector x. */
 /*----------------------------------------------------------------------------*/
-EFIKA_CORE_EXPORT val_t
+val_t
 BLAS_vnrm2(
   ind_t const n,
   val_t const * const restrict x

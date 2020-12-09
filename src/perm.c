@@ -4,7 +4,6 @@
 
 #include "efika/core.h"
 
-#include "efika/core/export.h"
 #include "efika/core/gc.h"
 #include "efika/core/pp.h"
 #include "efika/core/rename.h"
@@ -12,7 +11,7 @@
 /*----------------------------------------------------------------------------*/
 /*! Function to permute the rows of a matrix. */
 /*----------------------------------------------------------------------------*/
-EFIKA_CORE_EXPORT int
+EFIKA_EXPORT int
 Matrix_perm(Matrix * const M, ind_t * perm, ind_t * iperm)
 {
   /* ...garbage collected function... */

@@ -3,7 +3,6 @@
 
 #include "efika/core.h"
 
-#include "efika/core/export.h"
 #include "efika/core/gc.h"
 #include "efika/core/pp.h"
 #include "efika/core/rename.h"
@@ -37,7 +36,7 @@ _dsc(void const * const a, void const * const b)
 /*----------------------------------------------------------------------------*/
 /*! Function to test a matrix data structure for correctness. */
 /*----------------------------------------------------------------------------*/
-EFIKA_CORE_EXPORT int
+EFIKA_EXPORT int
 Matrix_test(Matrix const * const M)
 {
   fail_if(!M);
