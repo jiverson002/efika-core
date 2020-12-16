@@ -433,7 +433,7 @@ rsbcsr(Matrix const * const A, Matrix * const B)
 /*----------------------------------------------------------------------------*/
 /*! Function to convert a matrix from one storage format to another. */
 /*----------------------------------------------------------------------------*/
-EFIKA_CORE_EXPORT int
+EFIKA_EXPORT int
 Matrix_conv(Matrix const * const A, Matrix * const B, int const which)
 {
   if (!pp_all(A, B))

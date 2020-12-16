@@ -11,7 +11,7 @@ target_sources(${PROJECT_NAME}-tests
   PRIVATE blas.cc matrix.cc spgemm.cc)
 
 target_link_libraries(${PROJECT_NAME}-tests
-  PRIVATE gtest gtest_main ${PROJECT_NAME} EfikaSDK::core)
+  PRIVATE gtest gtest_main ${PROJECT_NAME})
 
 #-------------------------------------------------------------------------------
 # GoogleTest configuration
@@ -35,7 +35,7 @@ gtest_discover_tests(${PROJECT_NAME}-tests
 #-------------------------------------------------------------------------------
 foreach(dep data)
   FetchContent_Declare(efika-${dep}
-    GIT_REPOSITORY git@github.com:jiverson002/efika-${dep}.git)
+    GIT_REPOSITORY https://github.com/jiverson002/efika-${dep}.git)
 
   FetchContent_MakeAvailable(efika-${dep})
 
